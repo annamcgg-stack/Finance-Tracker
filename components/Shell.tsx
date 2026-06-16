@@ -72,7 +72,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, [loaded, user, data.onboardingCompleted, isPublic, isOnboarding, router]);
 
   if (isPublic || isOnboarding) {
-    return <div className="min-h-screen bg-background">{children}</div>;
+    return <div className="min-h-screen min-h-[100dvh] bg-background safe-top">{children}</div>;
   }
 
   const nav = (
@@ -100,8 +100,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-lg lg:hidden">
+    <div className="min-h-screen min-h-[100dvh] bg-background">
+      <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-lg lg:hidden">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">
             W
@@ -112,14 +112,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {saving && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
           <button
             onClick={toggleDark}
-            className="rounded-lg p-2 text-muted hover:bg-surface-elevated"
+            className="touch-target rounded-lg p-2 text-muted hover:bg-surface-elevated"
             aria-label="Toggle dark mode"
           >
             {data.darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-lg p-2 text-muted hover:bg-surface-elevated"
+            className="touch-target rounded-lg p-2 text-muted hover:bg-surface-elevated"
             aria-label="Toggle menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -128,7 +128,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </header>
 
       {mobileOpen && (
-        <div className="fixed inset-0 top-[57px] z-30 bg-surface lg:hidden">{nav}</div>
+        <div className="fixed inset-0 top-[calc(57px+env(safe-area-inset-top))] z-30 overflow-y-auto bg-surface lg:hidden">
+          {nav}
+        </div>
       )}
 
       <div className="mx-auto flex max-w-[1600px]">
@@ -162,7 +164,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="min-w-0 flex-1 px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8">
           {!loaded ? (
             <div className="flex flex-col items-center justify-center py-24 text-muted">
               <Loader2 className="mb-3 h-8 w-8 animate-spin" />
