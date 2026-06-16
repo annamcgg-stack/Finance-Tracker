@@ -21,7 +21,7 @@ import { Field, Input, Select, Button } from "@/components/ui/Field";
 import { AllocationPieChart, TrendLineChart } from "@/components/charts/FinanceCharts";
 
 export default function NetWorthPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -52,11 +52,11 @@ export default function NetWorthPage() {
   };
 
   const removeAsset = (id: string) => {
-    updateData({ assets: data.assets.filter((a) => a.id !== id) });
+    void saveNow({ assets: data.assets.filter((a) => a.id !== id) });
   };
 
   const removeLiability = (id: string) => {
-    updateData({ liabilities: data.liabilities.filter((l) => l.id !== id) });
+    void saveNow({ liabilities: data.liabilities.filter((l) => l.id !== id) });
   };
 
   return (

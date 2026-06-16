@@ -1,6 +1,7 @@
 {
+  "id": "/",
   "name": "Finance Tracker",
-  "short_name": "WealthPlan",
+  "short_name": "Finance Tracker",
   "description": "Track income, expenses, savings, investments, mortgages, and net worth.",
   "start_url": "/",
   "scope": "/",
@@ -29,6 +30,5 @@
       "purpose": "maskable"
     }
   ],
-  "screenshots": [],
   "prefer_related_applications": false
 }

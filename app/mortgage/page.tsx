@@ -19,7 +19,7 @@ import { Field, Input, Select, Button } from "@/components/ui/Field";
 import { TrendLineChart } from "@/components/charts/FinanceCharts";
 
 export default function MortgagePage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const { household } = useHousehold();
   const { user } = useSupabaseUser();
   const country = data.income.country;
@@ -56,7 +56,7 @@ export default function MortgagePage() {
   };
 
   const removeMortgage = (id: string) => {
-    updateData({
+    void saveNow({
       mortgageAccounts: data.mortgageAccounts.filter((m) => m.id !== id),
       mortgageExtraPayments: data.mortgageExtraPayments.filter(
         (p) => p.mortgageAccountId !== id
@@ -86,7 +86,7 @@ export default function MortgagePage() {
   };
 
   const removeExtra = (id: string) => {
-    updateData({
+    void saveNow({
       mortgageExtraPayments: data.mortgageExtraPayments.filter((p) => p.id !== id),
     });
   };

@@ -1,6 +1,9 @@
 "use client";
 
+import { APP_SIDEBAR_SUBTITLE } from "@/lib/branding";
 import Link from "next/link";
+import { AppLogo } from "@/components/branding/AppLogo";
+import { AppBrandName } from "@/components/branding/AppBrandName";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -31,6 +34,8 @@ import { useFinance } from "@/hooks/useFinanceData";
 import { useSupabaseUser } from "@/hooks/useSupabaseUser";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocalDataImportPrompt } from "@/components/LocalDataImportPrompt";
+import { AccountModeSelector } from "@/components/AccountModeSelector";
+import { SaveStatusIndicator } from "@/components/SaveStatusIndicator";
 
 const PUBLIC_ROUTES = ["/welcome", "/login", "/signup"];
 const ONBOARDING_ROUTES = ["/onboarding", "/invite"];
@@ -56,7 +61,7 @@ const ICONS = {
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data, updateData, loaded, saving, error } = useFinance();
+  const { data, updateData, loaded, saveStatus, error } = useFinance();
   const { user } = useSupabaseUser();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -65,11 +70,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const toggleDark = () => updateData({ darkMode: !data.darkMode });
 
   useEffect(() => {
-    if (!loaded || !user || isPublic || isOnboarding) return;
-    if (!data.onboardingCompleted) {
+    if (!loaded || !user || isPublic) return;
+
+    const onSetupRoute = isOnboarding || pathname.startsWith("/invite/");
+
+    if (data.setupCompleted) {
+      if (pathname === "/onboarding") {
+        router.replace("/");
+      }
+      return;
+    }
+
+    if (!onSetupRoute) {
       router.replace("/onboarding");
     }
-  }, [loaded, user, data.onboardingCompleted, isPublic, isOnboarding, router]);
+  }, [loaded, user, data.setupCompleted, isPublic, isOnboarding, pathname, router]);
 
   if (isPublic || isOnboarding) {
     return <div className="min-h-screen min-h-[100dvh] bg-background safe-top">{children}</div>;
@@ -103,13 +118,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen min-h-[100dvh] bg-background">
       <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-lg lg:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">
-            W
-          </div>
-          <span className="font-semibold text-foreground">WealthPlan</span>
+          <AppLogo size="sm" />
+          <AppBrandName />
         </div>
         <div className="flex items-center gap-2">
-          {saving && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
+          <SaveStatusIndicator status={saveStatus} error={error} />
           <button
             onClick={toggleDark}
             className="touch-target rounded-lg p-2 text-muted hover:bg-surface-elevated"
@@ -138,12 +151,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="border-b border-border px-5 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white">
-                  W
-                </div>
+                <AppLogo size="md" />
                 <div>
-                  <p className="font-semibold text-foreground">WealthPlan</p>
-                  <p className="text-xs text-muted">Personal Finance</p>
+                  <AppBrandName />
+                  <p className="text-xs text-muted capitalize">{APP_SIDEBAR_SUBTITLE}</p>
                 </div>
               </div>
               <button
@@ -157,8 +168,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {user?.email && (
               <p className="mt-3 truncate text-xs text-muted">{user.email}</p>
             )}
+            <div className="mt-4">
+              <SaveStatusIndicator status={saveStatus} error={error} />
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto">{nav}</div>
+          <div className="flex-1 overflow-y-auto">
+            {nav}
+            <div className="mt-4 border-t border-border pt-4">
+              <AccountModeSelector />
+            </div>
+          </div>
           <div className="border-t border-border p-3">
             <LogoutButton className="w-full justify-start" />
           </div>

@@ -18,6 +18,7 @@ export default function PortfolioPage() {
   const {
     data,
     updateData,
+    saveNow,
     portfolioHoldings,
     portfolioSummary,
     refreshPortfolioPrices,
@@ -64,7 +65,7 @@ export default function PortfolioPage() {
   };
 
   const removeHolding = (id: string) => {
-    updateData({
+    void saveNow({
       investmentHoldings: data.investmentHoldings.filter((h) => h.id !== id),
     });
   };

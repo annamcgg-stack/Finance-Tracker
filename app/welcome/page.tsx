@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { APP_TAGLINE, APP_INTRO } from "@/lib/branding";
+import { AppLogo } from "@/components/branding/AppLogo";
 import {
   Wallet,
   TrendingUp,
@@ -46,16 +48,11 @@ export default function WelcomePage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <div className="text-center">
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-white">
-          W
-        </div>
+        <AppLogo size="xl" className="mx-auto mb-6" />
         <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Plan your wealth with clarity
+          {APP_TAGLINE}
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-muted">
-          WealthPlan helps you understand your income, expenses, investments, and net worth —
-          all in one clean dashboard.
-        </p>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-muted">{APP_INTRO}</p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <Link href="/signup">
             <Button size="lg">Get started free</Button>

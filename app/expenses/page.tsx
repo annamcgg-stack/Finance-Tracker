@@ -22,7 +22,7 @@ import { Field, Input, Select, Toggle, Button } from "@/components/ui/Field";
 import { CategoryBarChart } from "@/components/charts/FinanceCharts";
 
 export default function ExpensesPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const { household } = useHousehold();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
@@ -71,7 +71,7 @@ export default function ExpensesPage() {
   };
 
   const removeExpense = (id: string) => {
-    updateData({ expenses: data.expenses.filter((e) => e.id !== id) });
+    void saveNow({ expenses: data.expenses.filter((e) => e.id !== id) });
   };
 
   return (

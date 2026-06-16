@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_NAME } from "@/lib/branding";
 import { WifiOff } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Field";
@@ -13,7 +14,7 @@ export default function OfflinePage() {
         </div>
         <h1 className="text-xl font-semibold text-foreground">You&apos;re offline</h1>
         <p className="text-sm text-muted">
-          Finance Tracker needs an internet connection to load and sync your data. Your private
+          {APP_NAME} needs an internet connection to load and sync your data. Your private
           information on this device remains secure.
         </p>
         <Button type="button" className="w-full" onClick={() => window.location.reload()}>

@@ -9,7 +9,7 @@ export const yahooFinanceProvider: MarketDataProvider = {
     try {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
       const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 WealthPlan/1.0" },
+        headers: { "User-Agent": "Mozilla/5.0 FinanceTracker/1.0" },
         next: { revalidate: 300 },
       });
       if (!res.ok) return null;

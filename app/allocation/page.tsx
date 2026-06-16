@@ -17,7 +17,7 @@ import { Field, Input, Button } from "@/components/ui/Field";
 import { AllocationPieChart } from "@/components/charts/FinanceCharts";
 
 export default function AllocationPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -48,7 +48,7 @@ export default function AllocationPage() {
   };
 
   const removeBucket = (id: string) => {
-    updateData({
+    void saveNow({
       allocationBuckets: data.allocationBuckets.filter((b) => b.id !== id),
     });
   };

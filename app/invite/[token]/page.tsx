@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   acceptInvitation,
-  completeOnboarding,
   getInvitationByToken,
 } from "@/lib/supabase/household-service";
 import { useFinance } from "@/hooks/useFinanceData";
@@ -17,7 +16,7 @@ export default function InviteAcceptPage() {
   const params = useParams();
   const token = params.token as string;
   const router = useRouter();
-  const { updateData } = useFinance();
+  const { finishSetup } = useFinance();
   const { reloadHousehold } = useHousehold();
   const [inviteInfo, setInviteInfo] = useState<{ householdName: string; invitedEmail: string } | null>(
     null
@@ -46,10 +45,9 @@ export default function InviteAcceptPage() {
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase not configured");
       await acceptInvitation(supabase, token);
-      await completeOnboarding(supabase, (await supabase.auth.getUser()).data.user!.id);
-      updateData({ onboardingCompleted: true });
+      await finishSetup("join_household", "personal");
       await reloadHousehold();
-      router.replace("/household");
+      router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to accept invitation");
     } finally {

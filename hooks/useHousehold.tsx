@@ -119,23 +119,16 @@ export function useHousehold() {
 export function useDashboardView(): {
   viewData: FinanceData;
   dashboardView: DashboardViewMode;
-  setDashboardView: (view: DashboardViewMode) => void;
+  setDashboardView: (view: DashboardViewMode) => Promise<void>;
   personalData: FinanceData;
   partnerData: PartnerSharedData[];
 } {
-  const { data, updateData } = useFinance();
+  const { data, setDashboardView } = useFinance();
   const { partnerData } = useHousehold();
 
   const viewData = useMemo(
     () => buildViewFinanceData(data, partnerData, data.dashboardView),
     [data, partnerData]
-  );
-
-  const setDashboardView = useCallback(
-    (view: DashboardViewMode) => {
-      updateData({ dashboardView: view });
-    },
-    [updateData]
   );
 
   return {

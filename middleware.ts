@@ -7,6 +7,7 @@ const PUBLIC_ROUTES = ["/welcome", "/login", "/signup", "/offline"];
 /** Static PWA assets — must not go through auth middleware */
 const PWA_STATIC_PATHS = [
   "/manifest.json",
+  "/manifest.webmanifest",
   "/sw.js",
   "/offline.html",
   "/favicon.ico",
@@ -70,6 +71,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|favicon.png|robots.txt|sitemap.xml|manifest.json|sw.js|offline.html|icons/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|favicon.png|robots.txt|sitemap.xml|manifest.json|manifest.webmanifest|sw.js|offline.html|icons/).*)",
   ],
 };

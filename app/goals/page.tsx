@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Button } from "@/components/ui/Field";
 
 export default function GoalsPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const { household } = useHousehold();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
@@ -50,7 +50,7 @@ export default function GoalsPage() {
   };
 
   const removeGoal = (id: string) => {
-    updateData({ goals: data.goals.filter((g) => g.id !== id) });
+    void saveNow({ goals: data.goals.filter((g) => g.id !== id) });
   };
 
   return (

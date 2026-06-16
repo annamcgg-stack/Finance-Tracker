@@ -166,6 +166,59 @@ export const CHART_COLORS = [
   "#A855F7",
 ];
 
+/** Empty starting state for authenticated users (no demo/sample financial data). */
+export const EMPTY_FINANCE_DATA: FinanceData = {
+  version: 1,
+  income: {
+    salary: 0,
+    payFrequency: "annual",
+    country: "AU",
+    stateProvince: "NSW",
+    taxYear: "2025-26",
+    includeMedicareLevy: true,
+    salarySacrifice: 0,
+    superContribution: 0,
+    includeAccLevy: true,
+    residencyStatus: "resident",
+    includeCpp: true,
+    includeEi: true,
+    ukRegion: "ENG",
+    includeNationalInsurance: true,
+    usFilingStatus: "single",
+  },
+  expenses: [],
+  sinkingFunds: [],
+  allocationBuckets: DEFAULT_ALLOCATION_BUCKETS,
+  goals: [],
+  houseDeposit: {
+    propertyPrice: 0,
+    depositPercent: 20,
+    currentSavings: 0,
+    monthlyContribution: 0,
+    annualReturn: 4,
+  },
+  investmentProjection: {
+    currentValue: 0,
+    monthlyContribution: 0,
+    annualReturn: 7,
+    timeHorizonYears: 20,
+  },
+  assets: [],
+  liabilities: [],
+  netWorthSnapshots: [],
+  scenarios: [],
+  investmentHoldings: [],
+  mortgageAccounts: [],
+  mortgageExtraPayments: [],
+  emergencyFundBalance: 0,
+  darkMode: false,
+  setupCompleted: false,
+  setupChoice: null,
+  onboardingCompleted: false,
+  dashboardView: "personal",
+};
+
+/** Demo/sample dataset — for JSON import/export previews only. */
 export const DEFAULT_FINANCE_DATA: FinanceData = {
   version: 1,
   income: {
@@ -254,6 +307,8 @@ export const DEFAULT_FINANCE_DATA: FinanceData = {
   mortgageExtraPayments: [],
   emergencyFundBalance: 15000,
   darkMode: false,
+  setupCompleted: false,
+  setupChoice: null,
   onboardingCompleted: false,
   dashboardView: "personal",
 };
@@ -273,6 +328,5 @@ export const NAV_ITEMS = [
   { href: "/mortgage", label: "Mortgage", icon: "Building2" },
   { href: "/net-worth", label: "Net Worth", icon: "Landmark" },
   { href: "/scenarios", label: "Scenarios", icon: "FlaskConical" },
-  { href: "/household", label: "Household", icon: "Users" },
   { href: "/settings", label: "Data", icon: "Database" },
 ] as const;

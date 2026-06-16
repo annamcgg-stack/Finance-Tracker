@@ -11,7 +11,7 @@ import { calculateInvestmentProjection, getScenarioReturns } from "@/lib/calcula
 import { formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import { StatCard, ProgressBar, SectionHeader } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
-import { DashboardViewSwitcher } from "@/components/household/DashboardViewSwitcher";
+import { APP_DASHBOARD_DESCRIPTION } from "@/lib/branding";
 import {
   AllocationPieChart,
   CategoryBarChart,
@@ -20,14 +20,8 @@ import {
   MultiLineChart,
 } from "@/components/charts/FinanceCharts";
 
-const VIEW_LABELS = {
-  personal: "My Finances",
-  shared: "Shared Finances",
-  combined: "Household Combined",
-};
-
 export default function DashboardPage() {
-  const { viewData, dashboardView, personalData } = useDashboardView();
+  const { viewData, personalData } = useDashboardView();
   const country = personalData.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -56,12 +50,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <SectionHeader
-        title="Dashboard"
-        description={`${VIEW_LABELS[dashboardView]} — your financial overview at a glance.`}
-      />
-
-      <DashboardViewSwitcher />
+      <SectionHeader title="Dashboard" description={APP_DASHBOARD_DESCRIPTION} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Net Worth" value={fmt(summary.netWorth)} trend="up" />

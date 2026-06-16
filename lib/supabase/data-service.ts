@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_FINANCE_DATA, DEFAULT_ALLOCATION_BUCKETS } from "@/lib/constants";
+import { EMPTY_FINANCE_DATA, DEFAULT_ALLOCATION_BUCKETS } from "@/lib/constants";
+import {
+  dbModeToDashboardView,
+  dashboardViewToDbMode,
+} from "@/lib/profile/preferences";
 import type {
   FinanceData,
   FixedExpense,
@@ -13,12 +17,12 @@ import type {
   InvestmentHolding,
   MortgageAccount,
   MortgageExtraPayment,
-  IncomeSettings,
   HouseDepositPlan,
   InvestmentProjectionSettings,
   DataVisibility,
   ExpenseSplitType,
   DashboardViewMode,
+  SetupChoice,
 } from "@/lib/types";
 import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 
@@ -31,6 +35,34 @@ function mapShareable(row: Record<string, unknown>) {
     visibility: (row.visibility as DataVisibility) ?? DEFAULT_SHAREABLE.visibility,
     householdId: (row.household_id as string) ?? null,
     sharedAccountId: (row.shared_account_id as string) ?? null,
+  };
+}
+
+function assertNoError(error: { message: string } | null, context: string) {
+  if (error) throw new Error(`${context}: ${error.message}`);
+}
+
+function mapIncomeFromRow(
+  income: Record<string, unknown> | null | undefined
+): FinanceData["income"] {
+  if (!income) return { ...EMPTY_FINANCE_DATA.income };
+  const taxOptions = (income.tax_options ?? {}) as Record<string, unknown>;
+  return {
+    salary: Number(income.salary),
+    payFrequency: income.pay_frequency as FinanceData["income"]["payFrequency"],
+    country: income.country as FinanceData["income"]["country"],
+    stateProvince: String(income.state_province ?? "NSW"),
+    taxYear: String(taxOptions.taxYear ?? EMPTY_FINANCE_DATA.income.taxYear),
+    includeMedicareLevy: Boolean(income.include_medicare_levy),
+    salarySacrifice: Number(income.salary_sacrifice),
+    superContribution: Number(income.super_contribution),
+    includeAccLevy: Boolean(taxOptions.includeAccLevy ?? true),
+    residencyStatus: (taxOptions.residencyStatus as FinanceData["income"]["residencyStatus"]) ?? "resident",
+    includeCpp: Boolean(taxOptions.includeCpp ?? true),
+    includeEi: Boolean(taxOptions.includeEi ?? true),
+    ukRegion: (taxOptions.ukRegion as FinanceData["income"]["ukRegion"]) ?? "ENG",
+    includeNationalInsurance: Boolean(taxOptions.includeNationalInsurance ?? true),
+    usFilingStatus: (taxOptions.usFilingStatus as FinanceData["income"]["usFilingStatus"]) ?? "single",
   };
 }
 
@@ -71,31 +103,21 @@ export async function loadFinanceDataFromSupabase(
   const profile = profileRes.data;
   const income = incomeRes.data;
 
-  const taxOptions = (income?.tax_options ?? {}) as Record<string, unknown>;
+  assertNoError(profileRes.error, "profiles load");
+  assertNoError(incomeRes.error, "income_settings load");
+  assertNoError(expensesRes.error, "fixed_expenses load");
+  assertNoError(sinkingRes.error, "sinking_funds load");
+  assertNoError(bucketsRes.error, "allocation_buckets load");
+  assertNoError(goalsRes.error, "financial_goals load");
+  assertNoError(assetsRes.error, "assets load");
+  assertNoError(liabilitiesRes.error, "liabilities load");
+  assertNoError(snapshotsRes.error, "net_worth_snapshots load");
+  assertNoError(scenariosRes.error, "scenarios load");
+  assertNoError(holdingsRes.error, "investment_holdings load");
+  assertNoError(mortgagesRes.error, "mortgage_accounts load");
+  assertNoError(extraPaymentsRes.error, "mortgage_extra_payments load");
 
-  const incomeSettings: IncomeSettings = income
-    ? {
-        ...DEFAULT_FINANCE_DATA.income,
-        salary: Number(income.salary),
-        payFrequency: income.pay_frequency as IncomeSettings["payFrequency"],
-        country: income.country as IncomeSettings["country"],
-        stateProvince: income.state_province,
-        taxYear: String(taxOptions.taxYear ?? DEFAULT_FINANCE_DATA.income.taxYear),
-        includeMedicareLevy: income.include_medicare_levy,
-        salarySacrifice: Number(income.salary_sacrifice),
-        superContribution: Number(income.super_contribution),
-        includeAccLevy: Boolean(taxOptions.includeAccLevy ?? DEFAULT_FINANCE_DATA.income.includeAccLevy),
-        residencyStatus: (taxOptions.residencyStatus as IncomeSettings["residencyStatus"]) ?? "resident",
-        includeCpp: Boolean(taxOptions.includeCpp ?? DEFAULT_FINANCE_DATA.income.includeCpp),
-        includeEi: Boolean(taxOptions.includeEi ?? DEFAULT_FINANCE_DATA.income.includeEi),
-        ukRegion: (taxOptions.ukRegion as IncomeSettings["ukRegion"]) ?? "ENG",
-        includeNationalInsurance: Boolean(
-          taxOptions.includeNationalInsurance ?? DEFAULT_FINANCE_DATA.income.includeNationalInsurance
-        ),
-        usFilingStatus:
-          (taxOptions.usFilingStatus as IncomeSettings["usFilingStatus"]) ?? "single",
-      }
-    : DEFAULT_FINANCE_DATA.income;
+  const incomeSettings = mapIncomeFromRow(income);
 
   const houseDeposit: HouseDepositPlan = profile
     ? {
@@ -105,7 +127,7 @@ export async function loadFinanceDataFromSupabase(
         monthlyContribution: Number(profile.house_monthly_contribution),
         annualReturn: Number(profile.house_annual_return),
       }
-    : DEFAULT_FINANCE_DATA.houseDeposit;
+    : { ...EMPTY_FINANCE_DATA.houseDeposit };
 
   const investmentProjection: InvestmentProjectionSettings = profile
     ? {
@@ -114,7 +136,16 @@ export async function loadFinanceDataFromSupabase(
         annualReturn: Number(profile.inv_annual_return),
         timeHorizonYears: Number(profile.inv_time_horizon_years),
       }
-    : DEFAULT_FINANCE_DATA.investmentProjection;
+    : { ...EMPTY_FINANCE_DATA.investmentProjection };
+
+  const profileRecord = profile as Record<string, unknown> | null;
+  const legacyOnboarding = Boolean(profileRecord?.onboarding_completed);
+  const setupCompleted = Boolean(profileRecord?.setup_completed ?? legacyOnboarding);
+  const setupChoice = (profileRecord?.setup_choice as SetupChoice | null) ?? null;
+  const onboardingCompleted = setupCompleted || legacyOnboarding;
+  const dashboardView = dbModeToDashboardView(
+    (profileRecord?.default_dashboard_mode ?? profileRecord?.dashboard_view) as string | undefined
+  );
 
   const expenses: FixedExpense[] = (expensesRes.data ?? []).map((r) => ({
     id: r.id,
@@ -146,7 +177,7 @@ export async function loadFinanceDataFromSupabase(
           percentage: Number(r.percentage),
           isDefault: r.is_default,
         }))
-      : DEFAULT_ALLOCATION_BUCKETS;
+      : [...DEFAULT_ALLOCATION_BUCKETS];
 
   const goals: FinancialGoal[] = (goalsRes.data ?? []).map((r) => ({
     id: r.id,
@@ -262,9 +293,44 @@ export async function loadFinanceDataFromSupabase(
     mortgageExtraPayments,
     emergencyFundBalance: profile ? Number(profile.emergency_fund_balance) : 0,
     darkMode: profile?.dark_mode ?? false,
-    onboardingCompleted: profile?.onboarding_completed ?? false,
-    dashboardView: (profile?.dashboard_view as DashboardViewMode) ?? "personal",
+    setupCompleted,
+    setupChoice,
+    onboardingCompleted,
+    dashboardView,
   };
+}
+
+export async function saveProfilePreferences(
+  supabase: SupabaseClient,
+  userId: string,
+  prefs: {
+    setupCompleted?: boolean;
+    setupChoice?: SetupChoice | null;
+    onboardingCompleted?: boolean;
+    dashboardView?: DashboardViewMode;
+    email?: string;
+  }
+): Promise<void> {
+  const ts = now();
+  const payload: Record<string, unknown> = {
+    user_id: userId,
+    updated_at: ts,
+  };
+  if (prefs.email !== undefined) payload.email = prefs.email;
+  if (prefs.setupCompleted !== undefined) {
+    payload.setup_completed = prefs.setupCompleted;
+    if (prefs.setupCompleted) payload.onboarding_completed = true;
+  }
+  if (prefs.setupChoice !== undefined) payload.setup_choice = prefs.setupChoice;
+  if (prefs.onboardingCompleted !== undefined) {
+    payload.onboarding_completed = prefs.onboardingCompleted;
+  }
+  if (prefs.dashboardView !== undefined) {
+    payload.dashboard_view = prefs.dashboardView;
+    payload.default_dashboard_mode = dashboardViewToDbMode(prefs.dashboardView);
+  }
+  const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
+  assertNoError(error, "profiles preferences save");
 }
 
 export async function saveFinanceDataToSupabase(
@@ -274,8 +340,9 @@ export async function saveFinanceDataToSupabase(
   email?: string
 ): Promise<void> {
   const ts = now();
+  const dbDashboardMode = dashboardViewToDbMode(data.dashboardView);
 
-  await supabase.from("profiles").upsert(
+  const profileResult = await supabase.from("profiles").upsert(
     {
       user_id: userId,
       email,
@@ -290,14 +357,18 @@ export async function saveFinanceDataToSupabase(
       inv_monthly_contribution: data.investmentProjection.monthlyContribution,
       inv_annual_return: data.investmentProjection.annualReturn,
       inv_time_horizon_years: data.investmentProjection.timeHorizonYears,
-      onboarding_completed: data.onboardingCompleted,
+      setup_completed: data.setupCompleted,
+      setup_choice: data.setupChoice,
+      onboarding_completed: data.setupCompleted || data.onboardingCompleted,
       dashboard_view: data.dashboardView,
+      default_dashboard_mode: dbDashboardMode,
       updated_at: ts,
     },
     { onConflict: "user_id" }
   );
+  assertNoError(profileResult.error, "profiles save");
 
-  await supabase.from("income_settings").upsert(
+  const incomeResult = await supabase.from("income_settings").upsert(
     {
       user_id: userId,
       salary: data.income.salary,
@@ -321,6 +392,7 @@ export async function saveFinanceDataToSupabase(
     },
     { onConflict: "user_id" }
   );
+  assertNoError(incomeResult.error, "income_settings save");
 
   await syncCollection(supabase, "fixed_expenses", userId, data.expenses, (e) => ({
     id: e.id,
@@ -495,17 +567,23 @@ async function syncCollection<T extends { id: string }>(
   items: T[],
   toRow: (item: T) => Record<string, unknown>
 ) {
-  const { data: existing } = await supabase.from(table).select("id").eq("user_id", userId);
+  const { data: existing, error: fetchError } = await supabase
+    .from(table)
+    .select("id")
+    .eq("user_id", userId);
+  assertNoError(fetchError, `${table} fetch`);
   const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
   const itemIds = new Set(items.map((i) => i.id));
 
   const toDelete = Array.from(existingIds).filter((id) => !itemIds.has(id));
   if (toDelete.length > 0) {
-    await supabase.from(table).delete().in("id", toDelete);
+    const { error: deleteError } = await supabase.from(table).delete().in("id", toDelete);
+    assertNoError(deleteError, `${table} delete`);
   }
 
   if (items.length > 0) {
-    await supabase.from(table).upsert(items.map(toRow));
+    const { error: upsertError } = await supabase.from(table).upsert(items.map(toRow));
+    assertNoError(upsertError, `${table} upsert`);
   }
 }
 

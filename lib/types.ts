@@ -33,6 +33,8 @@ export type GoalType =
 
 export type DataVisibility = "private" | "household" | "shared_account_only";
 export type DashboardViewMode = "personal" | "shared" | "combined";
+
+export type SetupChoice = "individual" | "create_household" | "join_household";
 export type HouseholdRole = "owner" | "admin" | "member";
 export type HouseholdMemberStatus = "invited" | "active" | "removed";
 export type InvitationStatus = "pending" | "accepted" | "declined" | "expired";
@@ -250,6 +252,9 @@ export interface FinanceData {
   mortgageExtraPayments: MortgageExtraPayment[];
   emergencyFundBalance: number;
   darkMode: boolean;
+  setupCompleted: boolean;
+  setupChoice: SetupChoice | null;
+  /** @deprecated Use setupCompleted — kept for legacy profile rows */
   onboardingCompleted: boolean;
   dashboardView: DashboardViewMode;
 }

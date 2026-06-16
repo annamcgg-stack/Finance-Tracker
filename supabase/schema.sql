@@ -1,4 +1,4 @@
--- WealthPlan database schema
+-- Finance Tracker database schema
 -- Run in Supabase SQL Editor or via CLI migrations
 
 -- ---------------------------------------------------------------------------

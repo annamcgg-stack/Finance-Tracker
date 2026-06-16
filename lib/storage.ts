@@ -1,18 +1,18 @@
-import { DEFAULT_FINANCE_DATA, STORAGE_KEY } from "./constants";
+import { EMPTY_FINANCE_DATA, STORAGE_KEY } from "./constants";
 import type { FinanceData, NetWorthSnapshot } from "./types";
 import { generateId } from "./format";
 
 export { STORAGE_KEY };
 
 export function loadFinanceData(): FinanceData {
-  if (typeof window === "undefined") return DEFAULT_FINANCE_DATA;
+  if (typeof window === "undefined") return EMPTY_FINANCE_DATA;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_FINANCE_DATA;
+    if (!raw) return EMPTY_FINANCE_DATA;
     const parsed = JSON.parse(raw) as FinanceData;
-    return { ...DEFAULT_FINANCE_DATA, ...parsed, version: 1 };
+    return { ...EMPTY_FINANCE_DATA, ...parsed, version: 1 };
   } catch {
-    return DEFAULT_FINANCE_DATA;
+    return EMPTY_FINANCE_DATA;
   }
 }
 
@@ -30,14 +30,14 @@ export function importFinanceData(json: string): FinanceData {
   if (!parsed.income || !parsed.version) {
     throw new Error("Invalid finance data format");
   }
-  return { ...DEFAULT_FINANCE_DATA, ...parsed };
+  return { ...EMPTY_FINANCE_DATA, ...parsed };
 }
 
 export function resetFinanceData(): FinanceData {
   if (typeof window !== "undefined") {
     localStorage.removeItem(STORAGE_KEY);
   }
-  return { ...DEFAULT_FINANCE_DATA };
+  return { ...EMPTY_FINANCE_DATA };
 }
 
 export function shouldCaptureSnapshot(

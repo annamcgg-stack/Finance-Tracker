@@ -1,8 +1,10 @@
 "use client";
 
+import { APP_NAME, APP_PWA_INSTALL_LINE } from "@/lib/branding";
 import { useEffect, useState, useCallback } from "react";
 import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/Field";
+import { AppLogo } from "@/components/branding/AppLogo";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -61,14 +63,10 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
       {showBanner && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lg sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm sm:rounded-xl sm:border">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white">
-              W
-            </div>
+            <AppLogo size="md" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">Install Finance Tracker</p>
-              <p className="mt-0.5 text-xs text-muted">
-                Add WealthPlan to your home screen for quick access.
-              </p>
+              <p className="text-sm font-medium text-foreground">Install {APP_NAME}</p>
+              <p className="mt-0.5 text-xs text-muted">{APP_PWA_INSTALL_LINE}</p>
               <div className="mt-3 flex gap-2">
                 <Button type="button" size="sm" onClick={handleInstall}>
                   <Download className="h-4 w-4" /> Install

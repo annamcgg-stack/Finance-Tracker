@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Toggle, Button } from "@/components/ui/Field";
 
 export default function ScenariosPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -44,7 +44,7 @@ export default function ScenariosPage() {
   };
 
   const removeScenario = (id: string) => {
-    updateData({ scenarios: data.scenarios.filter((s) => s.id !== id) });
+    void saveNow({ scenarios: data.scenarios.filter((s) => s.id !== id) });
   };
 
   return (

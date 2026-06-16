@@ -1,21 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { APP_NAME } from "@/lib/branding";
 import { useRouter } from "next/navigation";
 import { User, Users, Link2 } from "lucide-react";
 import { useFinance } from "@/hooks/useFinanceData";
-import { useSupabaseUser } from "@/hooks/useSupabaseUser";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { createHousehold, completeOnboarding } from "@/lib/supabase/household-service";
+import { createHousehold } from "@/lib/supabase/household-service";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Button } from "@/components/ui/Field";
+import { AppLogo } from "@/components/branding/AppLogo";
 
 type Choice = "individual" | "create" | "join" | null;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user } = useSupabaseUser();
-  const { updateData } = useFinance();
+  const { finishSetup } = useFinance();
   const [choice, setChoice] = useState<Choice>(null);
   const [householdName, setHouseholdName] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -24,11 +24,9 @@ export default function OnboardingPage() {
 
   const finishIndividual = async () => {
     setLoading(true);
+    setError("");
     try {
-      const supabase = getSupabaseClient();
-      if (!supabase || !user) throw new Error("Not signed in");
-      await completeOnboarding(supabase, user.id);
-      updateData({ onboardingCompleted: true });
+      await finishSetup("individual", "personal");
       router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -38,15 +36,19 @@ export default function OnboardingPage() {
   };
 
   const finishCreate = async () => {
-    if (!householdName.trim() || !user) return;
+    if (!householdName.trim()) return;
     setLoading(true);
+    setError("");
     try {
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase not configured");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not signed in");
       await createHousehold(supabase, user.id, householdName.trim());
-      await completeOnboarding(supabase, user.id);
-      updateData({ onboardingCompleted: true });
-      router.replace("/household");
+      await finishSetup("create_household", "personal");
+      router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create household");
     } finally {
@@ -63,10 +65,9 @@ export default function OnboardingPage() {
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center px-4 py-12">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold text-foreground">Welcome to WealthPlan</h1>
-        <p className="mt-2 text-sm text-muted">
-          How would you like to use the app?
-        </p>
+        <AppLogo size="lg" className="mx-auto mb-4" />
+        <h1 className="text-2xl font-semibold text-foreground">Welcome to {APP_NAME}</h1>
+        <p className="mt-2 text-sm text-muted">How would you like to use the app?</p>
       </div>
 
       {!choice && (
@@ -110,8 +111,8 @@ export default function OnboardingPage() {
       {choice === "individual" && (
         <Card className="space-y-4 p-6">
           <p className="text-sm text-muted">
-            Your data stays private by default. You can create or join a household later from the
-            Household section.
+            Your data stays private by default. You can create or join a household later from
+            Settings → Household.
           </p>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">

@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { APP_NAME } from "@/lib/branding";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Button } from "@/components/ui/Field";
+import { AppLogo } from "@/components/branding/AppLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,11 +36,9 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-4">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-lg font-bold text-white">
-          W
-        </div>
+        <AppLogo size="lg" className="mx-auto mb-4" />
         <h1 className="text-2xl font-semibold text-foreground">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted">Sign in to your WealthPlan account</p>
+        <p className="mt-1 text-sm text-muted">Sign in to your {APP_NAME} account</p>
       </div>
 
       <Card className="p-6">

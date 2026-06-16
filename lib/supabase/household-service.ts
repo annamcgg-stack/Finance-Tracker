@@ -11,6 +11,7 @@ import type {
   HouseholdActivityEvent,
 } from "@/lib/types";
 import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
+import { saveProfilePreferences } from "@/lib/supabase/data-service";
 
 function mapShareable(row: Record<string, unknown>, ownerUserId?: string) {
   return {
@@ -480,10 +481,10 @@ export async function completeOnboarding(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
-  await supabase
-    .from("profiles")
-    .update({ onboarding_completed: true })
-    .eq("user_id", userId);
+  await saveProfilePreferences(supabase, userId, {
+    setupCompleted: true,
+    onboardingCompleted: true,
+  });
 }
 
 export async function updateDashboardView(
@@ -491,10 +492,9 @@ export async function updateDashboardView(
   userId: string,
   view: string
 ): Promise<void> {
-  await supabase
-    .from("profiles")
-    .update({ dashboard_view: view })
-    .eq("user_id", userId);
+  await saveProfilePreferences(supabase, userId, {
+    dashboardView: view as "personal" | "shared" | "combined",
+  });
 }
 
 export async function getInvitationByToken(

@@ -1,6 +1,8 @@
+import { APP_NAME } from "@/lib/branding";
+
 export const PWA_CONFIG = {
-  name: "Finance Tracker",
-  shortName: "WealthPlan",
+  name: APP_NAME,
+  shortName: APP_NAME,
   description: "Track income, expenses, savings, investments, and net worth.",
   themeColor: "#0f172a",
   backgroundColor: "#0f172a",
@@ -8,8 +10,11 @@ export const PWA_CONFIG = {
   startUrl: "/",
   scope: "/",
   orientation: "portrait-primary" as const,
-  cacheVersion: "wealthplan-v1",
+  cacheVersion: "finance-tracker-v4",
 } as const;
+
+/** App label used in PWA metadata, browser titles, and install prompts. */
+export const APP_DISPLAY_NAME = PWA_CONFIG.shortName;
 
 export const PWA_ICON_PATHS = {
   icon192: "/icons/icon-192.png",

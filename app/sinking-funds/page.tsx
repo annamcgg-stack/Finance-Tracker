@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/Card";
 import { Field, Input, Button } from "@/components/ui/Field";
 
 export default function SinkingFundsPage() {
-  const { data, updateData } = useFinance();
+  const { data, updateData, saveNow } = useFinance();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
   const totalMonthly = getTotalSinkingFundMonthly(data.sinkingFunds);
@@ -38,7 +38,7 @@ export default function SinkingFundsPage() {
   };
 
   const removeFund = (id: string) => {
-    updateData({ sinkingFunds: data.sinkingFunds.filter((f) => f.id !== id) });
+    void saveNow({ sinkingFunds: data.sinkingFunds.filter((f) => f.id !== id) });
   };
 
   return (
