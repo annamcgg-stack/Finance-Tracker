@@ -5,13 +5,23 @@ export function getCurrencySymbol(country: CountryCode): string {
   return COUNTRIES.find((c) => c.code === country)?.symbol ?? "$";
 }
 
+const CURRENCY_LOCALE: Record<CountryCode, string> = {
+  AU: "en-AU",
+  NZ: "en-NZ",
+  SG: "en-SG",
+  CA: "en-CA",
+  GB: "en-GB",
+  US: "en-US",
+};
+
 export function formatCurrency(
   amount: number,
   country: CountryCode = "AU",
   compact = false
 ): string {
   const currency = COUNTRIES.find((c) => c.code === country)?.currency ?? "AUD";
-  return new Intl.NumberFormat("en-AU", {
+  const locale = CURRENCY_LOCALE[country] ?? "en-AU";
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     notation: compact && Math.abs(amount) >= 10000 ? "compact" : "standard",

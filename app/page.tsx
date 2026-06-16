@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useFinance } from "@/hooks/useFinanceData";
+import { useDashboardView } from "@/hooks/useHousehold";
 import { getDashboardSummary } from "@/lib/calculations/cashflow";
 import { sortGoalsByProgress, getGoalProgress, getGoalRemaining } from "@/lib/calculations/goals";
 import { getExpenseBreakdown } from "@/lib/calculations/expenses";
@@ -11,6 +11,7 @@ import { calculateInvestmentProjection, getScenarioReturns } from "@/lib/calcula
 import { formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import { StatCard, ProgressBar, SectionHeader } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
+import { DashboardViewSwitcher } from "@/components/household/DashboardViewSwitcher";
 import {
   AllocationPieChart,
   CategoryBarChart,
@@ -18,40 +19,49 @@ import {
   IncomeExpenseChart,
   MultiLineChart,
 } from "@/components/charts/FinanceCharts";
+
+const VIEW_LABELS = {
+  personal: "My Finances",
+  shared: "Shared Finances",
+  combined: "Household Combined",
+};
+
 export default function DashboardPage() {
-  const { data } = useFinance();
-  const country = data.income.country;
+  const { viewData, dashboardView, personalData } = useDashboardView();
+  const country = personalData.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
-  const summary = useMemo(() => getDashboardSummary(data), [data]);
-  const goals = useMemo(() => sortGoalsByProgress(data.goals).slice(0, 5), [data.goals]);
-  const expenseBreakdown = useMemo(() => getExpenseBreakdown(data.expenses), [data.expenses]);
+  const summary = useMemo(() => getDashboardSummary(viewData), [viewData]);
+  const goals = useMemo(() => sortGoalsByProgress(viewData.goals).slice(0, 5), [viewData.goals]);
+  const expenseBreakdown = useMemo(() => getExpenseBreakdown(viewData.expenses), [viewData.expenses]);
   const allocations = useMemo(
-    () => getBucketAllocations(data.allocationBuckets, summary.cashflow.monthlySurplus),
-    [data.allocationBuckets, summary.cashflow.monthlySurplus]
+    () => getBucketAllocations(viewData.allocationBuckets, summary.cashflow.monthlySurplus),
+    [viewData.allocationBuckets, summary.cashflow.monthlySurplus]
   );
-  const netWorthTrend = useMemo(() => getNetWorthTrend(data.netWorthSnapshots), [data.netWorthSnapshots]);
-  const assetAllocation = useMemo(() => getAssetAllocation(data.assets), [data.assets]);
+  const netWorthTrend = useMemo(() => getNetWorthTrend(viewData.netWorthSnapshots), [viewData.netWorthSnapshots]);
+  const assetAllocation = useMemo(() => getAssetAllocation(viewData.assets), [viewData.assets]);
 
-  const returns = getScenarioReturns(data.investmentProjection.annualReturn);
+  const returns = getScenarioReturns(personalData.investmentProjection.annualReturn);
   const projectionData = useMemo(() => {
-    const conservative = calculateInvestmentProjection({ ...data.investmentProjection, annualReturn: returns.conservative });
-    const base = calculateInvestmentProjection(data.investmentProjection);
-    const optimistic = calculateInvestmentProjection({ ...data.investmentProjection, annualReturn: returns.optimistic });
+    const conservative = calculateInvestmentProjection({ ...personalData.investmentProjection, annualReturn: returns.conservative });
+    const base = calculateInvestmentProjection(personalData.investmentProjection);
+    const optimistic = calculateInvestmentProjection({ ...personalData.investmentProjection, annualReturn: returns.optimistic });
     return base.points.map((p, i) => ({
       label: `Y${p.year}`,
       conservative: conservative.points[i]?.value ?? 0,
       base: p.value,
       optimistic: optimistic.points[i]?.value ?? 0,
     }));
-  }, [data.investmentProjection, returns]);
+  }, [personalData.investmentProjection, returns]);
 
   return (
     <div className="space-y-8">
       <SectionHeader
         title="Dashboard"
-        description="Your complete financial overview at a glance."
+        description={`${VIEW_LABELS[dashboardView]} — your financial overview at a glance.`}
       />
+
+      <DashboardViewSwitcher />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Net Worth" value={fmt(summary.netWorth)} trend="up" />

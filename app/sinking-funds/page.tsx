@@ -9,6 +9,7 @@ import {
 } from "@/lib/calculations/sinking-funds";
 import { formatCurrency, generateId } from "@/lib/format";
 import type { SinkingFund } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 import { SectionHeader, StatCard, ProgressBar, EmptyState } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Button } from "@/components/ui/Field";
@@ -25,6 +26,7 @@ export default function SinkingFundsPage() {
       name: "New Fund",
       annualTarget: 0,
       currentBalance: 0,
+      ...DEFAULT_SHAREABLE,
     };
     updateData({ sinkingFunds: [...data.sinkingFunds, fund] });
   };

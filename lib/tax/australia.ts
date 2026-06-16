@@ -2,8 +2,11 @@ import type { IncomeSettings, TaxResult } from "../types";
 import { toAnnual } from "../format";
 import type { TaxBracket, TaxEngine } from "./types";
 import { AU_STATES } from "../constants";
+import { buildTaxResult, calculateMarginalRate, calculateProgressiveTax } from "./utils";
 
-/** 2024-25 Australian resident tax brackets (Stage 3) */
+// Source: Australian Taxation Office (ATO) — individual income tax rates 2025–26
+// https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents
+
 const RESIDENT_BRACKETS: TaxBracket[] = [
   { min: 0, max: 18200, rate: 0 },
   { min: 18201, max: 45000, rate: 0.16 },
@@ -15,47 +18,44 @@ const RESIDENT_BRACKETS: TaxBracket[] = [
 const MEDICARE_LEVY_RATE = 0.02;
 const MEDICARE_LOW_INCOME_THRESHOLD = 24276;
 
-function calculateProgressiveTax(taxableIncome: number, brackets: TaxBracket[]): number {
-  let tax = 0;
-  for (const bracket of brackets) {
-    if (taxableIncome <= bracket.min) continue;
-    const upper = bracket.max ?? Infinity;
-    const taxableInBracket = Math.min(taxableIncome, upper) - bracket.min;
-    if (taxableInBracket > 0) {
-      tax += taxableInBracket * bracket.rate;
-    }
-  }
-  return Math.max(0, tax);
-}
-
 function calculateMedicareLevy(taxableIncome: number, include: boolean): number {
   if (!include || taxableIncome <= MEDICARE_LOW_INCOME_THRESHOLD) return 0;
   return taxableIncome * MEDICARE_LEVY_RATE;
 }
 
 export const australiaTaxEngine: TaxEngine = {
+  config: {
+    source: "Australian Taxation Office (ATO)",
+    taxYears: [{ value: "2025-26", label: "2025–26" }],
+    showStateSelector: true,
+    showUkRegion: false,
+    showResidencySelector: false,
+    showFilingStatus: false,
+    stateOptional: true,
+    stateLabel: "State (optional — stamp duty only)",
+  },
+
   getStateProvinces: () => AU_STATES,
+  getDefaultTaxYear: () => "2025-26",
+  getDefaultRegion: () => "NSW",
 
   calculate(income: IncomeSettings): TaxResult {
     const grossIncome = toAnnual(income.salary, income.payFrequency);
-    const taxableIncome = Math.max(0, grossIncome - income.salarySacrifice);
-
+    const preTaxDeductions = income.salarySacrifice;
+    const taxableIncome = Math.max(0, grossIncome - preTaxDeductions);
     const incomeTax = calculateProgressiveTax(taxableIncome, RESIDENT_BRACKETS);
     const medicareLevy = calculateMedicareLevy(taxableIncome, income.includeMedicareLevy);
-    const taxPayable = incomeTax + medicareLevy;
-    const netIncome = grossIncome - taxPayable - income.superContribution;
+    const marginalTaxRate = calculateMarginalRate(taxableIncome, RESIDENT_BRACKETS);
 
-    return {
+    return buildTaxResult({
       grossIncome,
       taxableIncome,
-      taxPayable: incomeTax,
+      incomeTax,
       medicareLevy,
-      netIncome,
-      monthlyTakeHome: netIncome / 12,
-      fortnightlyTakeHome: netIncome / 26,
-      weeklyTakeHome: netIncome / 52,
-      effectiveTaxRate: grossIncome > 0 ? (taxPayable / grossIncome) * 100 : 0,
-    };
+      preTaxDeductions,
+      postTaxDeductions: income.superContribution,
+      marginalTaxRate,
+    });
   },
 };
 

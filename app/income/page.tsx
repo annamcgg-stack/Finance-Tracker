@@ -2,31 +2,56 @@
 
 import { useMemo } from "react";
 import { useFinance } from "@/hooks/useFinanceData";
-import { getTaxEngine } from "@/lib/tax";
-import { COUNTRIES, AU_STATES, US_STATES } from "@/lib/constants";
+import { getTaxEngine, getDefaultIncomeForCountry } from "@/lib/tax";
+import { COUNTRIES, AU_STATES, CA_PROVINCES, UK_REGIONS, US_STATES } from "@/lib/constants";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { CountryCode, PayFrequency } from "@/lib/types";
+import type { CountryCode, PayFrequency, ResidencyStatus, UkRegion, UsFilingStatus } from "@/lib/types";
 import { SectionHeader, StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Toggle } from "@/components/ui/Field";
+
+const US_FILING_OPTIONS: { value: UsFilingStatus; label: string }[] = [
+  { value: "single", label: "Single" },
+  { value: "married_joint", label: "Married filing jointly" },
+  { value: "married_separate", label: "Married filing separately" },
+  { value: "head_of_household", label: "Head of household" },
+];
 
 export default function IncomePage() {
   const { data, updateData } = useFinance();
   const income = data.income;
   const country = income.country;
+  const engine = useMemo(() => getTaxEngine(country), [country]);
+  const config = engine.config;
 
-  const taxResult = useMemo(() => getTaxEngine(country).calculate(income), [country, income]);
+  const taxResult = useMemo(() => engine.calculate(income), [engine, income]);
   const fmt = (v: number) => formatCurrency(v, country);
 
-  const states = useMemo(() => {
+  const regionOptions = useMemo(() => {
     if (country === "AU") return AU_STATES;
+    if (country === "CA") return CA_PROVINCES;
     if (country === "US") return US_STATES;
-    return getTaxEngine(country).getStateProvinces();
-  }, [country]);
+    if (config.showUkRegion) return UK_REGIONS;
+    return engine.getStateProvinces();
+  }, [country, config.showUkRegion, engine]);
 
   const updateIncome = (patch: Partial<typeof income>) => {
     updateData({ income: { ...income, ...patch } });
   };
+
+  const handleCountryChange = (code: CountryCode) => {
+    const defaults = getDefaultIncomeForCountry(code);
+    updateIncome({
+      ...defaults,
+      salary: income.salary,
+      payFrequency: income.payFrequency,
+      salarySacrifice: income.salarySacrifice,
+      superContribution: income.superContribution,
+    });
+  };
+
+  const showRegionSelector =
+    config.showStateSelector || (country === "AU" && regionOptions.length > 0);
 
   return (
     <div className="space-y-8">
@@ -62,33 +87,87 @@ export default function IncomePage() {
           <Field label="Country">
             <Select
               value={country}
-              onChange={(e) => {
-                const code = e.target.value as CountryCode;
-                const engine = getTaxEngine(code);
-                const provinces = engine.getStateProvinces();
-                updateIncome({
-                  country: code,
-                  stateProvince: provinces[0]?.code ?? "",
-                });
-              }}
+              onChange={(e) => handleCountryChange(e.target.value as CountryCode)}
             >
               {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.label}
+                  {c.label} ({c.currency})
                 </option>
               ))}
             </Select>
           </Field>
 
-          {states.length > 0 && (
-            <Field label="State / Province">
+          <Field label="Tax Year">
+            <Select
+              value={income.taxYear}
+              onChange={(e) => updateIncome({ taxYear: e.target.value })}
+            >
+              {config.taxYears.map((y) => (
+                <option key={y.value} value={y.value}>
+                  {y.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          {config.showUkRegion && (
+            <Field label="Region">
+              <Select
+                value={income.ukRegion}
+                onChange={(e) => updateIncome({ ukRegion: e.target.value as UkRegion })}
+              >
+                {UK_REGIONS.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
+          {showRegionSelector && !config.showUkRegion && (
+            <Field
+              label={config.stateLabel ?? "State / Province"}
+              hint={config.stateOptional ? "Optional for income tax" : undefined}
+            >
               <Select
                 value={income.stateProvince}
                 onChange={(e) => updateIncome({ stateProvince: e.target.value })}
               >
-                {states.map((s) => (
+                {regionOptions.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
+          {config.showResidencySelector && (
+            <Field label="Residency">
+              <Select
+                value={income.residencyStatus}
+                onChange={(e) =>
+                  updateIncome({ residencyStatus: e.target.value as ResidencyStatus })
+                }
+              >
+                <option value="resident">Resident</option>
+                <option value="non_resident">Non-resident</option>
+              </Select>
+            </Field>
+          )}
+
+          {config.showFilingStatus && (
+            <Field label="Filing Status">
+              <Select
+                value={income.usFilingStatus}
+                onChange={(e) =>
+                  updateIncome({ usFilingStatus: e.target.value as UsFilingStatus })
+                }
+              >
+                {US_FILING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
@@ -118,20 +197,79 @@ export default function IncomePage() {
               </Field>
             </>
           )}
+
+          {country === "NZ" && (
+            <Toggle
+              label="Include ACC earners' levy"
+              checked={income.includeAccLevy}
+              onChange={(v) => updateIncome({ includeAccLevy: v })}
+            />
+          )}
+
+          {country === "CA" && (
+            <>
+              <Toggle
+                label="Include CPP contributions"
+                checked={income.includeCpp}
+                onChange={(v) => updateIncome({ includeCpp: v })}
+              />
+              <Toggle
+                label="Include EI premiums"
+                checked={income.includeEi}
+                onChange={(v) => updateIncome({ includeEi: v })}
+              />
+            </>
+          )}
+
+          {country === "GB" && (
+            <Toggle
+              label="Include National Insurance estimate"
+              checked={income.includeNationalInsurance}
+              onChange={(v) => updateIncome({ includeNationalInsurance: v })}
+            />
+          )}
+
+          {country !== "AU" && (
+            <Field label="Pre-tax deductions (annual)" hint="Salary sacrifice, pension, etc.">
+              <Input
+                type="number"
+                value={income.salarySacrifice || ""}
+                onChange={(e) => updateIncome({ salarySacrifice: Number(e.target.value) })}
+              />
+            </Field>
+          )}
         </Card>
 
         <div className="space-y-4">
+          <p className="text-xs text-muted">Source: {config.source}</p>
+
+          {taxResult.warnings.length > 0 && (
+            <div className="space-y-2">
+              {taxResult.warnings.map((warning) => (
+                <div
+                  key={warning}
+                  className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300"
+                >
+                  {warning}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <StatCard label="Gross Income" value={fmt(taxResult.grossIncome)} />
-            <StatCard label="Tax Payable" value={fmt(taxResult.taxPayable)} />
-            {country === "AU" && taxResult.medicareLevy > 0 && (
-              <StatCard label="Medicare Levy" value={fmt(taxResult.medicareLevy)} />
-            )}
-            <StatCard label="Net Income" value={fmt(taxResult.netIncome)} trend="up" />
+            <StatCard label="Gross Annual Income" value={fmt(taxResult.grossIncome)} />
+            <StatCard label="Estimated Income Tax" value={fmt(taxResult.incomeTax)} />
             <StatCard
-              label="Effective Tax Rate"
-              value={formatPercent(taxResult.effectiveTaxRate)}
+              label="Estimated Deductions / Contributions"
+              value={fmt(taxResult.deductions + taxResult.medicareLevy)}
             />
+            {taxResult.stateTax > 0 && (
+              <StatCard label="State / Provincial Tax" value={fmt(taxResult.stateTax)} />
+            )}
+            <StatCard label="Total Tax & Deductions" value={fmt(taxResult.totalTaxDeductions)} />
+            <StatCard label="Annual Take-Home" value={fmt(taxResult.netIncome)} trend="up" />
+            <StatCard label="Effective Tax Rate" value={formatPercent(taxResult.effectiveTaxRate)} />
+            <StatCard label="Marginal Tax Rate" value={formatPercent(taxResult.marginalTaxRate)} />
           </div>
 
           <Card className="p-5">
@@ -152,6 +290,8 @@ export default function IncomePage() {
               ))}
             </div>
           </Card>
+
+          <p className="text-xs text-muted">{taxResult.estimateDisclaimer}</p>
         </div>
       </div>
     </div>

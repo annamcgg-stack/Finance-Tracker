@@ -16,10 +16,22 @@ import type {
   IncomeSettings,
   HouseDepositPlan,
   InvestmentProjectionSettings,
+  DataVisibility,
+  ExpenseSplitType,
+  DashboardViewMode,
 } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 
 function now() {
   return new Date().toISOString();
+}
+
+function mapShareable(row: Record<string, unknown>) {
+  return {
+    visibility: (row.visibility as DataVisibility) ?? DEFAULT_SHAREABLE.visibility,
+    householdId: (row.household_id as string) ?? null,
+    sharedAccountId: (row.shared_account_id as string) ?? null,
+  };
 }
 
 export async function loadFinanceDataFromSupabase(
@@ -59,15 +71,29 @@ export async function loadFinanceDataFromSupabase(
   const profile = profileRes.data;
   const income = incomeRes.data;
 
+  const taxOptions = (income?.tax_options ?? {}) as Record<string, unknown>;
+
   const incomeSettings: IncomeSettings = income
     ? {
+        ...DEFAULT_FINANCE_DATA.income,
         salary: Number(income.salary),
         payFrequency: income.pay_frequency as IncomeSettings["payFrequency"],
         country: income.country as IncomeSettings["country"],
         stateProvince: income.state_province,
+        taxYear: String(taxOptions.taxYear ?? DEFAULT_FINANCE_DATA.income.taxYear),
         includeMedicareLevy: income.include_medicare_levy,
         salarySacrifice: Number(income.salary_sacrifice),
         superContribution: Number(income.super_contribution),
+        includeAccLevy: Boolean(taxOptions.includeAccLevy ?? DEFAULT_FINANCE_DATA.income.includeAccLevy),
+        residencyStatus: (taxOptions.residencyStatus as IncomeSettings["residencyStatus"]) ?? "resident",
+        includeCpp: Boolean(taxOptions.includeCpp ?? DEFAULT_FINANCE_DATA.income.includeCpp),
+        includeEi: Boolean(taxOptions.includeEi ?? DEFAULT_FINANCE_DATA.income.includeEi),
+        ukRegion: (taxOptions.ukRegion as IncomeSettings["ukRegion"]) ?? "ENG",
+        includeNationalInsurance: Boolean(
+          taxOptions.includeNationalInsurance ?? DEFAULT_FINANCE_DATA.income.includeNationalInsurance
+        ),
+        usFilingStatus:
+          (taxOptions.usFilingStatus as IncomeSettings["usFilingStatus"]) ?? "single",
       }
     : DEFAULT_FINANCE_DATA.income;
 
@@ -97,6 +123,11 @@ export async function loadFinanceDataFromSupabase(
     amount: Number(r.amount),
     frequency: r.frequency as FixedExpense["frequency"],
     active: r.active,
+    splitType: (r.split_type as ExpenseSplitType) ?? "50_50",
+    userContributionAmount: Number(r.user_contribution_amount ?? 0),
+    partnerContributionAmount: Number(r.partner_contribution_amount ?? 0),
+    userContributionPercent: Number(r.user_contribution_percent ?? 50),
+    ...mapShareable(r),
   }));
 
   const sinkingFunds: SinkingFund[] = (sinkingRes.data ?? []).map((r) => ({
@@ -104,6 +135,7 @@ export async function loadFinanceDataFromSupabase(
     name: r.name,
     annualTarget: Number(r.annual_target),
     currentBalance: Number(r.current_balance),
+    ...mapShareable(r),
   }));
 
   const allocationBuckets: AllocationBucket[] =
@@ -124,6 +156,9 @@ export async function loadFinanceDataFromSupabase(
     currentAmount: Number(r.current_amount),
     monthlyContribution: Number(r.monthly_contribution),
     targetDate: r.target_date ?? "",
+    userContributionAmount: Number(r.user_contribution_amount ?? 0),
+    partnerContributionAmount: Number(r.partner_contribution_amount ?? 0),
+    ...mapShareable(r),
   }));
 
   const assets: Asset[] = (assetsRes.data ?? []).map((r) => ({
@@ -131,6 +166,7 @@ export async function loadFinanceDataFromSupabase(
     name: r.name,
     type: r.asset_type as Asset["type"],
     value: Number(r.value),
+    ...mapShareable(r),
   }));
 
   const liabilities: Liability[] = (liabilitiesRes.data ?? []).map((r) => ({
@@ -138,6 +174,7 @@ export async function loadFinanceDataFromSupabase(
     name: r.name,
     type: r.liability_type as Liability["type"],
     value: Number(r.value),
+    ...mapShareable(r),
   }));
 
   const netWorthSnapshots: NetWorthSnapshot[] = (snapshotsRes.data ?? []).map((r) => ({
@@ -170,6 +207,10 @@ export async function loadFinanceDataFromSupabase(
     latestPriceUpdatedAt: r.latest_price_updated_at,
     sector: r.sector,
     notes: r.notes ?? "",
+    ownershipPercent: Number(r.ownership_percent ?? 100),
+    userContributionAmount: Number(r.user_contribution_amount ?? 0),
+    partnerContributionAmount: Number(r.partner_contribution_amount ?? 0),
+    ...mapShareable(r),
   }));
 
   const mortgageAccounts: MortgageAccount[] = (mortgagesRes.data ?? []).map((r) => ({
@@ -185,6 +226,10 @@ export async function loadFinanceDataFromSupabase(
     loanStartDate: r.loan_start_date ?? "",
     rateType: r.rate_type as MortgageAccount["rateType"],
     offsetBalance: Number(r.offset_balance),
+    ownershipSplitPercent: Number(r.ownership_split_percent ?? 50),
+    userRepaymentContribution: Number(r.user_repayment_contribution ?? 0),
+    partnerRepaymentContribution: Number(r.partner_repayment_contribution ?? 0),
+    ...mapShareable(r),
   }));
 
   const mortgageExtraPayments: MortgageExtraPayment[] = (extraPaymentsRes.data ?? []).map(
@@ -195,6 +240,7 @@ export async function loadFinanceDataFromSupabase(
       frequency: r.frequency as MortgageExtraPayment["frequency"],
       startDate: r.start_date ?? "",
       endDate: r.end_date,
+      paidByUserId: r.paid_by_user_id ?? null,
     })
   );
 
@@ -216,6 +262,8 @@ export async function loadFinanceDataFromSupabase(
     mortgageExtraPayments,
     emergencyFundBalance: profile ? Number(profile.emergency_fund_balance) : 0,
     darkMode: profile?.dark_mode ?? false,
+    onboardingCompleted: profile?.onboarding_completed ?? false,
+    dashboardView: (profile?.dashboard_view as DashboardViewMode) ?? "personal",
   };
 }
 
@@ -242,6 +290,8 @@ export async function saveFinanceDataToSupabase(
       inv_monthly_contribution: data.investmentProjection.monthlyContribution,
       inv_annual_return: data.investmentProjection.annualReturn,
       inv_time_horizon_years: data.investmentProjection.timeHorizonYears,
+      onboarding_completed: data.onboardingCompleted,
+      dashboard_view: data.dashboardView,
       updated_at: ts,
     },
     { onConflict: "user_id" }
@@ -257,6 +307,16 @@ export async function saveFinanceDataToSupabase(
       include_medicare_levy: data.income.includeMedicareLevy,
       salary_sacrifice: data.income.salarySacrifice,
       super_contribution: data.income.superContribution,
+      tax_options: {
+        taxYear: data.income.taxYear,
+        includeAccLevy: data.income.includeAccLevy,
+        residencyStatus: data.income.residencyStatus,
+        includeCpp: data.income.includeCpp,
+        includeEi: data.income.includeEi,
+        ukRegion: data.income.ukRegion,
+        includeNationalInsurance: data.income.includeNationalInsurance,
+        usFilingStatus: data.income.usFilingStatus,
+      },
       updated_at: ts,
     },
     { onConflict: "user_id" }
@@ -270,6 +330,13 @@ export async function saveFinanceDataToSupabase(
     amount: e.amount,
     frequency: e.frequency,
     active: e.active,
+    visibility: e.visibility,
+    household_id: e.householdId,
+    shared_account_id: e.sharedAccountId,
+    split_type: e.splitType,
+    user_contribution_amount: e.userContributionAmount,
+    partner_contribution_amount: e.partnerContributionAmount,
+    user_contribution_percent: e.userContributionPercent,
     updated_at: ts,
   }));
 
@@ -279,6 +346,9 @@ export async function saveFinanceDataToSupabase(
     name: f.name,
     annual_target: f.annualTarget,
     current_balance: f.currentBalance,
+    visibility: f.visibility,
+    household_id: f.householdId,
+    shared_account_id: f.sharedAccountId,
     updated_at: ts,
   }));
 
@@ -300,6 +370,11 @@ export async function saveFinanceDataToSupabase(
     current_amount: g.currentAmount,
     monthly_contribution: g.monthlyContribution,
     target_date: g.targetDate || null,
+    visibility: g.visibility,
+    household_id: g.householdId,
+    shared_account_id: g.sharedAccountId,
+    user_contribution_amount: g.userContributionAmount,
+    partner_contribution_amount: g.partnerContributionAmount,
     updated_at: ts,
   }));
 
@@ -309,6 +384,9 @@ export async function saveFinanceDataToSupabase(
     name: a.name,
     asset_type: a.type,
     value: a.value,
+    visibility: a.visibility,
+    household_id: a.householdId,
+    shared_account_id: a.sharedAccountId,
     updated_at: ts,
   }));
 
@@ -318,6 +396,9 @@ export async function saveFinanceDataToSupabase(
     name: l.name,
     liability_type: l.type,
     value: l.value,
+    visibility: l.visibility,
+    household_id: l.householdId,
+    shared_account_id: l.sharedAccountId,
     updated_at: ts,
   }));
 
@@ -356,6 +437,12 @@ export async function saveFinanceDataToSupabase(
     latest_price_updated_at: h.latestPriceUpdatedAt,
     sector: h.sector,
     notes: h.notes,
+    visibility: h.visibility,
+    household_id: h.householdId,
+    shared_account_id: h.sharedAccountId,
+    ownership_percent: h.ownershipPercent,
+    user_contribution_amount: h.userContributionAmount,
+    partner_contribution_amount: h.partnerContributionAmount,
     updated_at: ts,
   }));
 
@@ -373,6 +460,12 @@ export async function saveFinanceDataToSupabase(
     loan_start_date: m.loanStartDate || null,
     rate_type: m.rateType,
     offset_balance: m.offsetBalance,
+    visibility: m.visibility,
+    household_id: m.householdId,
+    shared_account_id: m.sharedAccountId,
+    ownership_split_percent: m.ownershipSplitPercent,
+    user_repayment_contribution: m.userRepaymentContribution,
+    partner_repayment_contribution: m.partnerRepaymentContribution,
     updated_at: ts,
   }));
 
@@ -389,6 +482,7 @@ export async function saveFinanceDataToSupabase(
       frequency: p.frequency,
       start_date: p.startDate || null,
       end_date: p.endDate,
+      paid_by_user_id: p.paidByUserId,
       updated_at: ts,
     })
   );

@@ -12,12 +12,17 @@ import {
 import { GOAL_TYPES } from "@/lib/constants";
 import { formatCurrency, formatDate, generateId } from "@/lib/format";
 import type { FinancialGoal, GoalType } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
+import { ShareVisibilityControl } from "@/components/household/ShareVisibilityControl";
+import { VisibilityBadge } from "@/components/household/VisibilityBadge";
+import { useHousehold } from "@/hooks/useHousehold";
 import { SectionHeader, ProgressBar, Badge, EmptyState } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Button } from "@/components/ui/Field";
 
 export default function GoalsPage() {
   const { data, updateData } = useFinance();
+  const { household } = useHousehold();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
   const goals = sortGoalsByProgress(data.goals);
@@ -31,6 +36,9 @@ export default function GoalsPage() {
       currentAmount: 0,
       monthlyContribution: 500,
       targetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      userContributionAmount: 0,
+      partnerContributionAmount: 0,
+      ...DEFAULT_SHAREABLE,
     };
     updateData({ goals: [...data.goals, goal] });
   };
@@ -81,6 +89,7 @@ export default function GoalsPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-foreground">{goal.name}</h3>
+                      <VisibilityBadge visibility={goal.visibility} />
                       <Badge variant={onTrack ? "success" : "warning"}>
                         {onTrack ? "On track" : "Behind"}
                       </Badge>
@@ -144,6 +153,45 @@ export default function GoalsPage() {
                     />
                   </Field>
                 </div>
+
+                {household && (
+                  <div className="mb-4 space-y-3 border-b border-border pb-4">
+                    <ShareVisibilityControl
+                      visibility={goal.visibility}
+                      householdId={goal.householdId}
+                      activeHouseholdId={household.id}
+                      onChange={(visibility, householdId) =>
+                        updateGoal(goal.id, { visibility, householdId })
+                      }
+                    />
+                    {goal.visibility !== "private" && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Your contribution">
+                          <Input
+                            type="number"
+                            value={goal.userContributionAmount || ""}
+                            onChange={(e) =>
+                              updateGoal(goal.id, {
+                                userContributionAmount: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                        <Field label="Partner contribution">
+                          <Input
+                            type="number"
+                            value={goal.partnerContributionAmount || ""}
+                            onChange={(e) =>
+                              updateGoal(goal.id, {
+                                partnerContributionAmount: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="font-medium text-foreground">{progress.toFixed(0)}% complete</span>

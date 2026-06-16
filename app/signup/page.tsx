@@ -27,7 +27,7 @@ export default function SignupPage() {
       if (authError) throw authError;
 
       if (data.session && data.user) {
-        router.replace("/");
+        router.replace("/onboarding");
       } else {
         setMessage("Check your email to confirm your account, then log in.");
       }

@@ -8,6 +8,11 @@ import {
 } from "@/lib/calculations/mortgage";
 import { formatCurrency, formatDate, generateId } from "@/lib/format";
 import type { MortgageAccount, MortgageExtraPayment } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
+import { ShareVisibilityControl } from "@/components/household/ShareVisibilityControl";
+import { VisibilityBadge } from "@/components/household/VisibilityBadge";
+import { useHousehold } from "@/hooks/useHousehold";
+import { useSupabaseUser } from "@/hooks/useSupabaseUser";
 import { SectionHeader, StatCard, EmptyState } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Button } from "@/components/ui/Field";
@@ -15,6 +20,8 @@ import { TrendLineChart } from "@/components/charts/FinanceCharts";
 
 export default function MortgagePage() {
   const { data, updateData } = useFinance();
+  const { household } = useHousehold();
+  const { user } = useSupabaseUser();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -32,6 +39,10 @@ export default function MortgagePage() {
       loanStartDate: new Date().toISOString().slice(0, 10),
       rateType: "variable",
       offsetBalance: 0,
+      ownershipSplitPercent: 50,
+      userRepaymentContribution: 0,
+      partnerRepaymentContribution: 0,
+      ...DEFAULT_SHAREABLE,
     };
     updateData({ mortgageAccounts: [...data.mortgageAccounts, account] });
   };
@@ -61,6 +72,7 @@ export default function MortgagePage() {
       frequency: "monthly",
       startDate: new Date().toISOString().slice(0, 10),
       endDate: null,
+      paidByUserId: user?.id ?? null,
     };
     updateData({ mortgageExtraPayments: [...data.mortgageExtraPayments, extra] });
   };
@@ -128,7 +140,10 @@ export default function MortgagePage() {
             <div key={account.id} className="space-y-4">
               <Card className="p-5">
                 <div className="mb-4 flex items-start justify-between">
-                  <h3 className="text-lg font-semibold text-foreground">{account.propertyName}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground">{account.propertyName}</h3>
+                    <VisibilityBadge visibility={account.visibility} />
+                  </div>
                   <Button variant="ghost" size="sm" onClick={() => removeMortgage(account.id)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
@@ -236,6 +251,68 @@ export default function MortgagePage() {
                     </Select>
                   </Field>
                 </div>
+
+                {household && (
+                  <div className="mt-4 space-y-3 border-t border-border pt-4">
+                    <ShareVisibilityControl
+                      visibility={account.visibility}
+                      householdId={account.householdId}
+                      activeHouseholdId={household.id}
+                      onChange={(visibility, householdId) =>
+                        updateMortgage(account.id, { visibility, householdId })
+                      }
+                    />
+                    {account.visibility !== "private" && (
+                      <>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <Field label="Your ownership %">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={account.ownershipSplitPercent}
+                              onChange={(e) =>
+                                updateMortgage(account.id, {
+                                  ownershipSplitPercent: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field label="Your repayment">
+                            <Input
+                              type="number"
+                              value={account.userRepaymentContribution || ""}
+                              onChange={(e) =>
+                                updateMortgage(account.id, {
+                                  userRepaymentContribution: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field label="Partner repayment">
+                            <Input
+                              type="number"
+                              value={account.partnerRepaymentContribution || ""}
+                              onChange={(e) =>
+                                updateMortgage(account.id, {
+                                  partnerRepaymentContribution: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <p className="text-xs text-muted">
+                          Household equity:{" "}
+                          {fmt(
+                            account.propertyValue * (account.ownershipSplitPercent / 100) -
+                              account.currentBalance * (account.ownershipSplitPercent / 100)
+                          )}{" "}
+                          (your share)
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
               </Card>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -14,6 +14,7 @@ import {
 } from "@/lib/calculations/net-worth";
 import { formatCurrency, generateId } from "@/lib/format";
 import type { Asset, AssetType, Liability, LiabilityType } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 import { SectionHeader, StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Button } from "@/components/ui/Field";
@@ -31,12 +32,12 @@ export default function NetWorthPage() {
   const trend = useMemo(() => getNetWorthTrend(data.netWorthSnapshots), [data.netWorthSnapshots]);
 
   const addAsset = () => {
-    const asset: Asset = { id: generateId(), name: "New Asset", type: "other", value: 0 };
+    const asset: Asset = { id: generateId(), name: "New Asset", type: "other", value: 0, ...DEFAULT_SHAREABLE };
     updateData({ assets: [...data.assets, asset] });
   };
 
   const addLiability = () => {
-    const liability: Liability = { id: generateId(), name: "New Liability", type: "other", value: 0 };
+    const liability: Liability = { id: generateId(), name: "New Liability", type: "other", value: 0, ...DEFAULT_SHAREABLE };
     updateData({ liabilities: [...data.liabilities, liability] });
   };
 

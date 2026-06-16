@@ -22,8 +22,10 @@ import {
   Moon,
   Sun,
   Loader2,
+  Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/constants";
 import { useFinance } from "@/hooks/useFinanceData";
 import { useSupabaseUser } from "@/hooks/useSupabaseUser";
@@ -31,6 +33,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { LocalDataImportPrompt } from "@/components/LocalDataImportPrompt";
 
 const PUBLIC_ROUTES = ["/welcome", "/login", "/signup"];
+const ONBOARDING_ROUTES = ["/onboarding", "/invite"];
 
 const ICONS = {
   LayoutDashboard,
@@ -47,18 +50,28 @@ const ICONS = {
   FlaskConical,
   Database,
   Building2,
+  Users,
 } as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data, updateData, loaded, saving, error } = useFinance();
   const { user } = useSupabaseUser();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+  const isOnboarding = ONBOARDING_ROUTES.some((r) => pathname.startsWith(r));
   const toggleDark = () => updateData({ darkMode: !data.darkMode });
 
-  if (isPublic) {
+  useEffect(() => {
+    if (!loaded || !user || isPublic || isOnboarding) return;
+    if (!data.onboardingCompleted) {
+      router.replace("/onboarding");
+    }
+  }, [loaded, user, data.onboardingCompleted, isPublic, isOnboarding, router]);
+
+  if (isPublic || isOnboarding) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 

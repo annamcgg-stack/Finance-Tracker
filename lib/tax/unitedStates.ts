@@ -2,36 +2,50 @@ import type { IncomeSettings, TaxResult } from "../types";
 import { toAnnual } from "../format";
 import type { TaxEngine } from "./types";
 import { US_STATES } from "../constants";
+import { buildTaxResult } from "./utils";
+import {
+  calculateMarginalRate,
+  calculateProgressiveTax,
+  getFederalBrackets,
+  getStandardDeduction,
+} from "./usFederal";
+import { getStateIncomeTax } from "./usStates";
 
-/** Stub — US federal tax (simplified placeholder) */
 export const unitedStatesTaxEngine: TaxEngine = {
+  config: {
+    source: "Internal Revenue Service (IRS)",
+    taxYears: [{ value: "2025", label: "2025" }],
+    showStateSelector: true,
+    showUkRegion: false,
+    showResidencySelector: false,
+    showFilingStatus: true,
+    stateLabel: "State",
+  },
+
   getStateProvinces: () => US_STATES,
+  getDefaultTaxYear: () => "2025",
+  getDefaultRegion: () => "TX",
 
   calculate(income: IncomeSettings): TaxResult {
     const grossIncome = toAnnual(income.salary, income.payFrequency);
-    const taxableIncome = Math.max(0, grossIncome - income.salarySacrifice - 14600);
+    const preTaxDeductions = income.salarySacrifice;
+    const brackets = getFederalBrackets(income.usFilingStatus);
+    const standardDeduction = getStandardDeduction(income.usFilingStatus);
+    const taxableIncome = Math.max(0, grossIncome - preTaxDeductions - standardDeduction);
+    const federalTax = calculateProgressiveTax(taxableIncome, brackets);
+    const stateResult = getStateIncomeTax(income.stateProvince, taxableIncome);
+    const marginalTaxRate = calculateMarginalRate(taxableIncome, brackets);
+    const warnings = stateResult.warning ? [stateResult.warning] : [];
 
-    let tax = 0;
-    if (taxableIncome > 609350) tax += (taxableIncome - 609350) * 0.37;
-    if (taxableIncome > 243725) tax += (Math.min(taxableIncome, 609350) - 243725) * 0.35;
-    if (taxableIncome > 191950) tax += (Math.min(taxableIncome, 243725) - 191950) * 0.32;
-    if (taxableIncome > 100525) tax += (Math.min(taxableIncome, 191950) - 100525) * 0.24;
-    if (taxableIncome > 47150) tax += (Math.min(taxableIncome, 100525) - 47150) * 0.22;
-    if (taxableIncome > 11600) tax += (Math.min(taxableIncome, 47150) - 11600) * 0.12;
-    if (taxableIncome > 0) tax += Math.min(taxableIncome, 11600) * 0.1;
-
-    const netIncome = grossIncome - tax - income.superContribution;
-
-    return {
+    return buildTaxResult({
       grossIncome,
-      taxableIncome: Math.max(0, grossIncome - income.salarySacrifice),
-      taxPayable: tax,
-      medicareLevy: 0,
-      netIncome,
-      monthlyTakeHome: netIncome / 12,
-      fortnightlyTakeHome: netIncome / 26,
-      weeklyTakeHome: netIncome / 52,
-      effectiveTaxRate: grossIncome > 0 ? (tax / grossIncome) * 100 : 0,
-    };
+      taxableIncome,
+      incomeTax: federalTax,
+      stateTax: stateResult.tax,
+      preTaxDeductions,
+      postTaxDeductions: income.superContribution,
+      marginalTaxRate,
+      warnings,
+    });
   },
 };

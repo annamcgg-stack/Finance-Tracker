@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { FinanceProvider } from "@/hooks/useFinanceData";
+import { HouseholdProvider } from "@/hooks/useHousehold";
 import { Shell } from "@/components/Shell";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -16,7 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans`}>
         <FinanceProvider>
-          <Shell>{children}</Shell>
+          <HouseholdProvider>
+            <Shell>{children}</Shell>
+          </HouseholdProvider>
         </FinanceProvider>
       </body>
     </html>

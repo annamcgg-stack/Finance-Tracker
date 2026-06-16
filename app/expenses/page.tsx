@@ -10,7 +10,12 @@ import {
 } from "@/lib/calculations/expenses";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatCurrency, generateId, toAnnual, toMonthly } from "@/lib/format";
-import type { ExpenseCategory, ExpenseFrequency, FixedExpense } from "@/lib/types";
+import type { ExpenseCategory, ExpenseFrequency, FixedExpense, ExpenseSplitType } from "@/lib/types";
+import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
+import { applyExpenseSplit, calculateExpenseSplit } from "@/lib/calculations/household";
+import { ShareVisibilityControl } from "@/components/household/ShareVisibilityControl";
+import { VisibilityBadge } from "@/components/household/VisibilityBadge";
+import { useHousehold } from "@/hooks/useHousehold";
 import { SectionHeader, StatCard, EmptyState } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Toggle, Button } from "@/components/ui/Field";
@@ -18,6 +23,7 @@ import { CategoryBarChart } from "@/components/charts/FinanceCharts";
 
 export default function ExpensesPage() {
   const { data, updateData } = useFinance();
+  const { household } = useHousehold();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
 
@@ -26,20 +32,41 @@ export default function ExpensesPage() {
   const breakdown = useMemo(() => getExpenseBreakdown(data.expenses), [data.expenses]);
 
   const addExpense = () => {
-    const expense: FixedExpense = {
-      id: generateId(),
-      name: "New Expense",
-      category: "other",
-      amount: 0,
-      frequency: "monthly",
-      active: true,
-    };
+    const expense: FixedExpense = applyExpenseSplit(
+      {
+        id: generateId(),
+        name: "New Expense",
+        category: "other",
+        amount: 0,
+        frequency: "monthly",
+        active: true,
+        ...DEFAULT_SHAREABLE,
+        splitType: "50_50",
+        userContributionAmount: 0,
+        partnerContributionAmount: 0,
+        userContributionPercent: 50,
+      },
+      "50_50"
+    );
     updateData({ expenses: [...data.expenses, expense] });
   };
 
   const updateExpense = (id: string, patch: Partial<FixedExpense>) => {
     updateData({
-      expenses: data.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      expenses: data.expenses.map((e) => {
+        if (e.id !== id) return e;
+        const updated = { ...e, ...patch };
+        if (patch.amount !== undefined || patch.splitType !== undefined) {
+          return applyExpenseSplit(
+            updated,
+            updated.splitType,
+            updated.userContributionAmount,
+            updated.partnerContributionAmount,
+            updated.userContributionPercent
+          );
+        }
+        return updated;
+      }),
     });
   };
 
@@ -78,6 +105,12 @@ export default function ExpensesPage() {
         <div className="space-y-3">
           {data.expenses.map((expense) => (
             <Card key={expense.id} className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <VisibilityBadge visibility={expense.visibility} />
+                {expense.ownerUserId && (
+                  <span className="text-xs text-muted">Partner&apos;s expense</span>
+                )}
+              </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
                 <Field label="Name" className="lg:col-span-2">
                   <Input
@@ -131,10 +164,88 @@ export default function ExpensesPage() {
                   </Button>
                 </div>
               </div>
+              {!expense.ownerUserId && household && (
+                <div className="mt-4 space-y-3 border-t border-border pt-4">
+                  <ShareVisibilityControl
+                    visibility={expense.visibility}
+                    householdId={expense.householdId}
+                    activeHouseholdId={household.id}
+                    onChange={(visibility, householdId) =>
+                      updateExpense(expense.id, { visibility, householdId })
+                    }
+                  />
+                  {expense.visibility !== "private" && (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Field label="Split type">
+                        <Select
+                          value={expense.splitType}
+                          onChange={(e) =>
+                            updateExpense(expense.id, {
+                              splitType: e.target.value as ExpenseSplitType,
+                            })
+                          }
+                        >
+                          <option value="50_50">50 / 50</option>
+                          <option value="percentage">Percentage</option>
+                          <option value="custom">Custom amount</option>
+                        </Select>
+                      </Field>
+                      {expense.splitType === "percentage" && (
+                        <Field label="Your %">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={expense.userContributionPercent}
+                            onChange={(e) =>
+                              updateExpense(expense.id, {
+                                userContributionPercent: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                      )}
+                      {expense.splitType === "custom" && (
+                        <>
+                          <Field label="You pay">
+                            <Input
+                              type="number"
+                              value={expense.userContributionAmount || ""}
+                              onChange={(e) =>
+                                updateExpense(expense.id, {
+                                  userContributionAmount: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field label="Partner pays">
+                            <Input
+                              type="number"
+                              value={expense.partnerContributionAmount || ""}
+                              onChange={(e) =>
+                                updateExpense(expense.id, {
+                                  partnerContributionAmount: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {expense.active && expense.amount > 0 && (
                 <p className="mt-2 text-xs text-muted">
                   {fmt(toMonthly(expense.amount, expense.frequency))}/mo ·{" "}
                   {fmt(toAnnual(expense.amount, expense.frequency))}/yr
+                  {expense.visibility !== "private" && (
+                    <>
+                      {" "}
+                      · You: {fmt(calculateExpenseSplit(expense).userAmount)} · Partner:{" "}
+                      {fmt(calculateExpenseSplit(expense).partnerAmount)}
+                    </>
+                  )}
                 </p>
               )}
             </Card>

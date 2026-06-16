@@ -36,6 +36,7 @@ create table if not exists public.income_settings (
   include_medicare_levy boolean not null default true,
   salary_sacrifice numeric not null default 0,
   super_contribution numeric not null default 0,
+  tax_options jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
