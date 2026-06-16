@@ -3,20 +3,22 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useFinance } from "@/hooks/useFinanceData";
 import {
-  sortGoalsByProgress,
+  sortGoalsByPriority,
   getGoalProgress,
   getGoalRemaining,
   getGoalEstimatedCompletion,
   getGoalOnTrack,
+  getMonthlyNeededForGoal,
 } from "@/lib/calculations/goals";
-import { GOAL_TYPES } from "@/lib/constants";
+import { GOAL_TYPES, GOAL_PRIORITY_OPTIONS } from "@/lib/constants";
 import { formatCurrency, formatDate, generateId } from "@/lib/format";
 import type { FinancialGoal, GoalType } from "@/lib/types";
 import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 import { ShareVisibilityControl } from "@/components/household/ShareVisibilityControl";
 import { VisibilityBadge } from "@/components/household/VisibilityBadge";
 import { useHousehold } from "@/hooks/useHousehold";
-import { SectionHeader, ProgressBar, Badge, EmptyState } from "@/components/ui/StatCard";
+import { PageWithSaveStatus } from "@/components/layout/PageWithSaveStatus";
+import { ProgressBar, Badge, EmptyState } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select, Button } from "@/components/ui/Field";
 
@@ -25,7 +27,7 @@ export default function GoalsPage() {
   const { household } = useHousehold();
   const country = data.income.country;
   const fmt = (v: number) => formatCurrency(v, country);
-  const goals = sortGoalsByProgress(data.goals);
+  const goals = sortGoalsByPriority(data.goals);
 
   const addGoal = () => {
     const goal: FinancialGoal = {
@@ -36,6 +38,7 @@ export default function GoalsPage() {
       currentAmount: 0,
       monthlyContribution: 500,
       targetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      priority: 3,
       userContributionAmount: 0,
       partnerContributionAmount: 0,
       ...DEFAULT_SHAREABLE,
@@ -54,16 +57,15 @@ export default function GoalsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <SectionHeader
-        title="Financial Goals"
-        description="Track progress toward your savings targets."
-        action={
-          <Button onClick={addGoal}>
-            <Plus className="h-4 w-4" /> Add Goal
-          </Button>
-        }
-      />
+    <PageWithSaveStatus
+      title="Future Plans"
+      description="Track progress toward house deposits, holidays, emergency funds, and custom goals."
+      action={
+        <Button onClick={addGoal}>
+          <Plus className="h-4 w-4" /> Add Goal
+        </Button>
+      }
+    >
 
       {goals.length === 0 ? (
         <EmptyState
@@ -82,6 +84,7 @@ export default function GoalsPage() {
             const remaining = getGoalRemaining(goal);
             const completion = getGoalEstimatedCompletion(goal);
             const onTrack = getGoalOnTrack(goal);
+            const monthlyNeeded = getMonthlyNeededForGoal(goal);
 
             return (
               <Card key={goal.id} className="p-5">
@@ -152,6 +155,18 @@ export default function GoalsPage() {
                       onChange={(e) => updateGoal(goal.id, { targetDate: e.target.value })}
                     />
                   </Field>
+                  <Field label="Priority">
+                    <Select
+                      value={goal.priority}
+                      onChange={(e) => updateGoal(goal.id, { priority: Number(e.target.value) })}
+                    >
+                      {GOAL_PRIORITY_OPTIONS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 </div>
 
                 {household && (
@@ -202,6 +217,9 @@ export default function GoalsPage() {
                 <ProgressBar value={progress} color="bg-primary" />
                 <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted">
                   <span>{fmt(remaining)} remaining</span>
+                  {monthlyNeeded != null && (
+                    <span>{fmt(monthlyNeeded)}/mo needed to hit target date</span>
+                  )}
                   {completion && (
                     <span>Est. completion: {formatDate(completion.toISOString())}</span>
                   )}
@@ -211,6 +229,6 @@ export default function GoalsPage() {
           })}
         </div>
       )}
-    </div>
+    </PageWithSaveStatus>
   );
 }

@@ -19,6 +19,14 @@ create table if not exists public.profiles (
   inv_monthly_contribution numeric not null default 0,
   inv_annual_return numeric not null default 7,
   inv_time_horizon_years integer not null default 20,
+  onboarding_completed boolean not null default false,
+  dashboard_view text not null default 'personal'
+    check (dashboard_view in ('personal', 'shared', 'combined')),
+  default_dashboard_mode text not null default 'individual'
+    check (default_dashboard_mode in ('individual', 'household', 'combined')),
+  setup_completed boolean not null default false,
+  setup_choice text
+    check (setup_choice is null or setup_choice in ('individual', 'create_household', 'join_household')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -367,3 +375,29 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Financial health score snapshots
+create table if not exists public.financial_health_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  household_id uuid references public.households(id) on delete set null,
+  score integer not null check (score >= 0 and score <= 100),
+  rating text not null,
+  category_scores jsonb not null default '{}'::jsonb,
+  suggestions jsonb not null default '[]'::jsonb,
+  snapshot_date timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists financial_health_snapshots_user_id_idx
+  on public.financial_health_snapshots(user_id);
+
+alter table public.financial_health_snapshots enable row level security;
+create policy "financial_health_snapshots_select_own"
+  on public.financial_health_snapshots for select using (auth.uid() = user_id);
+create policy "financial_health_snapshots_insert_own"
+  on public.financial_health_snapshots for insert with check (auth.uid() = user_id);
+create policy "financial_health_snapshots_update_own"
+  on public.financial_health_snapshots for update using (auth.uid() = user_id);
+create policy "financial_health_snapshots_delete_own"
+  on public.financial_health_snapshots for delete using (auth.uid() = user_id);

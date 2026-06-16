@@ -30,12 +30,28 @@ export const GOAL_TYPES: { value: GoalType; label: string }[] = [
   { value: "emergency_fund", label: "Emergency Fund" },
   { value: "holiday", label: "Holiday" },
   { value: "car", label: "Car" },
-  { value: "investment_portfolio", label: "Investment Portfolio" },
-  { value: "education", label: "Education" },
   { value: "wedding", label: "Wedding" },
   { value: "renovation", label: "Renovation" },
+  { value: "education", label: "Education" },
+  { value: "business_acquisition", label: "Business Acquisition Fund" },
+  { value: "investment_portfolio", label: "Investment Goal" },
   { value: "custom", label: "Custom" },
 ];
+
+export const GOAL_PRIORITY_OPTIONS = [
+  { value: 1, label: "Critical" },
+  { value: 2, label: "High" },
+  { value: 3, label: "Medium" },
+  { value: 4, label: "Low" },
+  { value: 5, label: "Someday" },
+] as const;
+
+export const PORTFOLIO_BENCHMARKS = [
+  { id: "sp500", label: "S&P 500" },
+  { id: "asx200", label: "ASX 200" },
+  { id: "ftse100", label: "FTSE 100" },
+  { id: "nzx50", label: "NZX 50" },
+] as const;
 
 export const COUNTRIES: { code: CountryCode; label: string; currency: string; symbol: string }[] = [
   { code: "AU", label: "Australia", currency: "AUD", symbol: "$" },
@@ -134,12 +150,12 @@ export const UK_REGIONS = [
 ];
 
 export const DEFAULT_ALLOCATION_BUCKETS: AllocationBucket[] = [
-  { id: "investing", name: "Investing", percentage: 30, isDefault: true },
-  { id: "savings", name: "Savings", percentage: 20, isDefault: true },
-  { id: "emergency", name: "Emergency Fund", percentage: 15, isDefault: true },
-  { id: "house", name: "House Deposit", percentage: 20, isDefault: true },
-  { id: "holidays", name: "Holidays", percentage: 10, isDefault: true },
-  { id: "lifestyle", name: "Lifestyle Spending", percentage: 5, isDefault: true },
+  { id: "", slug: "investing", name: "Investing", percentage: 30, isDefault: true },
+  { id: "", slug: "savings", name: "Savings", percentage: 20, isDefault: true },
+  { id: "", slug: "emergency", name: "Emergency Fund", percentage: 15, isDefault: true },
+  { id: "", slug: "house", name: "House Deposit", percentage: 20, isDefault: true },
+  { id: "", slug: "holidays", name: "Holidays", percentage: 10, isDefault: true },
+  { id: "", slug: "lifestyle", name: "Lifestyle Spending", percentage: 5, isDefault: true },
 ];
 
 export const SCENARIO_TYPES: { value: ScenarioType; label: string; unit: string }[] = [
@@ -206,6 +222,7 @@ export const EMPTY_FINANCE_DATA: FinanceData = {
   assets: [],
   liabilities: [],
   netWorthSnapshots: [],
+  financialHealthSnapshots: [],
   scenarios: [],
   investmentHoldings: [],
   mortgageAccounts: [],
@@ -261,6 +278,7 @@ export const DEFAULT_FINANCE_DATA: FinanceData = {
       currentAmount: 15000,
       monthlyContribution: 800,
       targetDate: "2027-06-01",
+      priority: 1,
       userContributionAmount: 15000,
       partnerContributionAmount: 0,
       ...DEFAULT_SHAREABLE,
@@ -273,6 +291,7 @@ export const DEFAULT_FINANCE_DATA: FinanceData = {
       currentAmount: 2500,
       monthlyContribution: 400,
       targetDate: "2026-12-01",
+      priority: 2,
       userContributionAmount: 2500,
       partnerContributionAmount: 0,
       ...DEFAULT_SHAREABLE,
@@ -301,6 +320,7 @@ export const DEFAULT_FINANCE_DATA: FinanceData = {
     { id: "hecs-1", name: "HECS/HELP", type: "hecs_help", value: 12000, ...DEFAULT_SHAREABLE },
   ],
   netWorthSnapshots: [],
+  financialHealthSnapshots: [],
   scenarios: [],
   investmentHoldings: [],
   mortgageAccounts: [],
@@ -315,12 +335,14 @@ export const DEFAULT_FINANCE_DATA: FinanceData = {
 
 export const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard" },
+  { href: "/financial-health", label: "Health Score", icon: "Shield" },
+  { href: "/household", label: "Household", icon: "Users" },
   { href: "/income", label: "Income & Tax", icon: "Wallet" },
   { href: "/expenses", label: "Fixed Expenses", icon: "Receipt" },
   { href: "/sinking-funds", label: "Sinking Funds", icon: "PiggyBank" },
   { href: "/cashflow", label: "Cashflow", icon: "TrendingUp" },
   { href: "/allocation", label: "Allocation", icon: "PieChart" },
-  { href: "/goals", label: "Goals", icon: "Target" },
+  { href: "/goals", label: "Future Plans", icon: "Target" },
   { href: "/house-deposit", label: "House Deposit", icon: "Home" },
   { href: "/emergency-fund", label: "Emergency Fund", icon: "Shield" },
   { href: "/investments", label: "Projections", icon: "LineChart" },

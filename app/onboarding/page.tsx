@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { APP_NAME } from "@/lib/branding";
+import { APP_WELCOME_ONBOARDING } from "@/lib/branding";
 import { useRouter } from "next/navigation";
 import { User, Users, Link2 } from "lucide-react";
 import { useFinance } from "@/hooks/useFinanceData";
@@ -56,17 +56,26 @@ export default function OnboardingPage() {
     }
   };
 
-  const finishJoin = () => {
+  const finishJoin = async () => {
     const token = inviteToken.trim();
     if (!token) return;
-    router.push(`/invite/${token}`);
+    setLoading(true);
+    setError("");
+    try {
+      await finishSetup("join_household", "personal");
+      router.push(`/invite/${token}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center px-4 py-12">
       <div className="mb-8 text-center">
         <AppLogo size="lg" className="mx-auto mb-4" />
-        <h1 className="text-2xl font-semibold text-foreground">Welcome to {APP_NAME}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{APP_WELCOME_ONBOARDING}</h1>
         <p className="mt-2 text-sm text-muted">How would you like to use the app?</p>
       </div>
 
@@ -160,8 +169,8 @@ export default function OnboardingPage() {
             <Button variant="secondary" onClick={() => setChoice(null)}>
               Back
             </Button>
-            <Button onClick={finishJoin} disabled={!inviteToken.trim()}>
-              Continue
+            <Button onClick={finishJoin} disabled={loading || !inviteToken.trim()}>
+              {loading ? "Saving…" : "Continue"}
             </Button>
           </div>
         </Card>

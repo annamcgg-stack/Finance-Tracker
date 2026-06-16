@@ -21,7 +21,7 @@ export function getInvestingAllocation(
   monthlySurplus: number
 ): number {
   const investing = buckets.find(
-    (b) => b.id === "investing" || b.name.toLowerCase().includes("invest")
+    (b) => b.slug === "investing" || b.name.toLowerCase().includes("invest")
   );
   if (!investing) return 0;
   return (investing.percentage / 100) * monthlySurplus * 12;

@@ -10,10 +10,12 @@ import {
   getBucketAllocations,
 } from "@/lib/calculations/allocation";
 import { formatCurrency, generateId } from "@/lib/format";
+import { getAllocationBucketKey } from "@/lib/allocation/buckets";
 import type { AllocationBucket } from "@/lib/types";
-import { SectionHeader, StatCard } from "@/components/ui/StatCard";
+import { PageWithSaveStatus } from "@/components/layout/PageWithSaveStatus";
+import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
-import { Field, Input, Button } from "@/components/ui/Field";
+import { Field, Input, Select, Button } from "@/components/ui/Field";
 import { AllocationPieChart } from "@/components/charts/FinanceCharts";
 
 export default function AllocationPage() {
@@ -29,10 +31,10 @@ export default function AllocationPage() {
     [data.allocationBuckets, cashflow.monthlySurplus]
   );
 
-  const updateBucket = (id: string, patch: Partial<AllocationBucket>) => {
+  const updateBucket = (key: string, patch: Partial<AllocationBucket>) => {
     updateData({
       allocationBuckets: data.allocationBuckets.map((b) =>
-        b.id === id ? { ...b, ...patch } : b
+        getAllocationBucketKey(b) === key ? { ...b, ...patch } : b
       ),
     });
   };
@@ -43,27 +45,29 @@ export default function AllocationPage() {
       name: "Custom Bucket",
       percentage: 0,
       isDefault: false,
+      goalId: null,
     };
     updateData({ allocationBuckets: [...data.allocationBuckets, bucket] });
   };
 
-  const removeBucket = (id: string) => {
+  const removeBucket = (key: string) => {
     void saveNow({
-      allocationBuckets: data.allocationBuckets.filter((b) => b.id !== id),
+      allocationBuckets: data.allocationBuckets.filter(
+        (b) => getAllocationBucketKey(b) !== key
+      ),
     });
   };
 
   return (
-    <div className="space-y-8">
-      <SectionHeader
-        title="Money Allocation"
-        description="Divide your surplus across savings, investing, and lifestyle buckets."
-        action={
-          <Button onClick={addBucket} variant="secondary">
-            <Plus className="h-4 w-4" /> Add Bucket
-          </Button>
-        }
-      />
+    <PageWithSaveStatus
+      title="Surplus Allocation"
+      description="Divide your monthly surplus across investing, savings, and lifestyle buckets."
+      action={
+        <Button onClick={addBucket} variant="secondary">
+          <Plus className="h-4 w-4" /> Add Bucket
+        </Button>
+      }
+    >
 
       {!valid && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
@@ -81,21 +85,22 @@ export default function AllocationPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-3">
           {data.allocationBuckets.map((bucket) => {
-            const alloc = allocations.find((a) => a.id === bucket.id);
+            const bucketKey = getAllocationBucketKey(bucket);
+            const alloc = allocations.find((a) => getAllocationBucketKey(a) === bucketKey);
             return (
-              <Card key={bucket.id} className="p-4">
+              <Card key={bucketKey} className="p-4">
                 <div className="mb-3 flex items-center justify-between">
                   {bucket.isDefault ? (
                     <span className="font-medium text-foreground">{bucket.name}</span>
                   ) : (
                     <Input
                       value={bucket.name}
-                      onChange={(e) => updateBucket(bucket.id, { name: e.target.value })}
+                      onChange={(e) => updateBucket(bucketKey, { name: e.target.value })}
                       className="max-w-[200px]"
                     />
                   )}
                   {!bucket.isDefault && (
-                    <Button variant="ghost" size="sm" onClick={() => removeBucket(bucket.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => removeBucket(bucketKey)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   )}
@@ -107,7 +112,7 @@ export default function AllocationPage() {
                     max={100}
                     value={bucket.percentage}
                     onChange={(e) =>
-                      updateBucket(bucket.id, { percentage: Number(e.target.value) })
+                      updateBucket(bucketKey, { percentage: Number(e.target.value) })
                     }
                     className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-surface-elevated accent-primary"
                   />
@@ -118,7 +123,7 @@ export default function AllocationPage() {
                       max={100}
                       value={bucket.percentage}
                       onChange={(e) =>
-                        updateBucket(bucket.id, { percentage: Number(e.target.value) })
+                        updateBucket(bucketKey, { percentage: Number(e.target.value) })
                       }
                     />
                   </Field>
@@ -129,6 +134,21 @@ export default function AllocationPage() {
                     {fmt(alloc.monthlyAmount)}/mo · {fmt(alloc.annualAmount)}/yr
                   </p>
                 )}
+                <Field label="Link to goal (optional)" className="mt-3">
+                  <Select
+                    value={bucket.goalId ?? ""}
+                    onChange={(e) =>
+                      updateBucket(bucketKey, { goalId: e.target.value || null })
+                    }
+                  >
+                    <option value="">None</option>
+                    {data.goals.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
               </Card>
             );
           })}
@@ -142,6 +162,6 @@ export default function AllocationPage() {
           />
         </Card>
       </div>
-    </div>
+    </PageWithSaveStatus>
   );
 }

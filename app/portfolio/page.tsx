@@ -5,6 +5,7 @@ import { Plus, Trash2, RefreshCw, Loader2 } from "lucide-react";
 import { useFinance } from "@/hooks/useFinanceData";
 import { formatPercent, generateId } from "@/lib/format";
 import type { InvestmentHolding } from "@/lib/types";
+import { PORTFOLIO_BENCHMARKS } from "@/lib/constants";
 import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
 import { ShareVisibilityControl } from "@/components/household/ShareVisibilityControl";
 import { VisibilityBadge } from "@/components/household/VisibilityBadge";
@@ -331,7 +332,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {holdingChart.length > 0 && (
+      {holdingChart.length > 0 && portfolioSummary && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="p-5">
             <h2 className="mb-4 text-lg font-semibold text-foreground">Allocation by Holding</h2>
@@ -342,6 +343,42 @@ export default function PortfolioPage() {
           <Card className="p-5">
             <h2 className="mb-4 text-lg font-semibold text-foreground">Gain/Loss by Holding</h2>
             <CategoryBarChart data={gainLossChart} />
+          </Card>
+          <Card className="p-5">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Allocation by Country</h2>
+            <AllocationPieChart
+              data={portfolioSummary.byCountry.map((c) => ({ name: c.name, value: c.value }))}
+            />
+          </Card>
+          <Card className="p-5">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Allocation by Currency</h2>
+            <AllocationPieChart
+              data={portfolioSummary.byCurrency.map((c) => ({ name: c.name, value: c.value }))}
+            />
+          </Card>
+          {portfolioSummary.bySector.some((s) => s.name !== "Unknown") && (
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-semibold text-foreground">Allocation by Sector</h2>
+              <AllocationPieChart
+                data={portfolioSummary.bySector.map((s) => ({ name: s.name, value: s.value }))}
+              />
+            </Card>
+          )}
+          <Card className="p-5">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Benchmark Comparison</h2>
+            <p className="mb-3 text-sm text-muted">
+              Compare your portfolio performance to a benchmark index (coming soon).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PORTFOLIO_BENCHMARKS.map((b) => (
+                <span
+                  key={b.id}
+                  className="rounded-lg border border-border bg-surface-elevated px-3 py-1.5 text-sm text-muted"
+                >
+                  {b.label}
+                </span>
+              ))}
+            </div>
           </Card>
         </div>
       )}

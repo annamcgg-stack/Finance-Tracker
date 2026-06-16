@@ -29,6 +29,7 @@ export type GoalType =
   | "education"
   | "wedding"
   | "renovation"
+  | "business_acquisition"
   | "custom";
 
 export type DataVisibility = "private" | "household" | "shared_account_only";
@@ -55,6 +56,7 @@ export type AssetType =
   | "shares_etfs"
   | "superannuation"
   | "property"
+  | "crypto"
   | "vehicles"
   | "other";
 
@@ -124,6 +126,9 @@ export interface AllocationBucket {
   name: string;
   percentage: number;
   isDefault: boolean;
+  /** Frontend-only stable key for default buckets; never sent to Supabase. */
+  slug?: string | null;
+  goalId?: string | null;
 }
 
 export interface FinancialGoal extends ShareableFields {
@@ -134,6 +139,7 @@ export interface FinancialGoal extends ShareableFields {
   currentAmount: number;
   monthlyContribution: number;
   targetDate: string;
+  priority: number;
   userContributionAmount: number;
   partnerContributionAmount: number;
 }
@@ -173,6 +179,23 @@ export interface NetWorthSnapshot {
   netWorth: number;
   totalAssets: number;
   totalLiabilities: number;
+}
+
+export type HealthRating =
+  | "Needs Attention"
+  | "Getting Started"
+  | "Stable"
+  | "Strong"
+  | "Excellent";
+
+export interface FinancialHealthSnapshot {
+  id: string;
+  date: string;
+  score: number;
+  rating: HealthRating;
+  categoryScores: Record<string, number>;
+  suggestions: string[];
+  householdId: string | null;
 }
 
 export type RepaymentFrequency = "weekly" | "fortnightly" | "monthly";
@@ -246,6 +269,7 @@ export interface FinanceData {
   assets: Asset[];
   liabilities: Liability[];
   netWorthSnapshots: NetWorthSnapshot[];
+  financialHealthSnapshots: FinancialHealthSnapshot[];
   scenarios: Scenario[];
   investmentHoldings: InvestmentHolding[];
   mortgageAccounts: MortgageAccount[];

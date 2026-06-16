@@ -1,14 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useDashboardView } from "@/hooks/useHousehold";
 import { getDashboardSummary } from "@/lib/calculations/cashflow";
 import { sortGoalsByProgress, getGoalProgress, getGoalRemaining } from "@/lib/calculations/goals";
 import { getExpenseBreakdown } from "@/lib/calculations/expenses";
 import { getBucketAllocations } from "@/lib/calculations/allocation";
-import { getNetWorthTrend, getAssetAllocation, ASSET_TYPE_LABELS } from "@/lib/calculations/net-worth";
+import {
+  getNetWorthTrend,
+  getIntegratedAssetAllocation,
+  ASSET_TYPE_LABELS,
+} from "@/lib/calculations/net-worth";
+import { calculateFinancialHealthScore } from "@/lib/calculations/financialHealthScore";
 import { calculateInvestmentProjection, getScenarioReturns } from "@/lib/calculations/investment-projection";
 import { formatCurrency, formatPercent, formatDate } from "@/lib/format";
+import { DashboardViewSwitcher } from "@/components/household/DashboardViewSwitcher";
 import { StatCard, ProgressBar, SectionHeader } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { APP_DASHBOARD_DESCRIPTION } from "@/lib/branding";
@@ -33,7 +40,8 @@ export default function DashboardPage() {
     [viewData.allocationBuckets, summary.cashflow.monthlySurplus]
   );
   const netWorthTrend = useMemo(() => getNetWorthTrend(viewData.netWorthSnapshots), [viewData.netWorthSnapshots]);
-  const assetAllocation = useMemo(() => getAssetAllocation(viewData.assets), [viewData.assets]);
+  const assetAllocation = useMemo(() => getIntegratedAssetAllocation(viewData), [viewData]);
+  const health = useMemo(() => calculateFinancialHealthScore(viewData), [viewData]);
 
   const returns = getScenarioReturns(personalData.investmentProjection.annualReturn);
   const projectionData = useMemo(() => {
@@ -51,8 +59,17 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <SectionHeader title="Dashboard" description={APP_DASHBOARD_DESCRIPTION} />
+      <DashboardViewSwitcher />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Link href="/financial-health" className="block">
+          <StatCard
+            label="Financial Health"
+            value={`${health.score} / 100`}
+            subtext={health.rating}
+            trend={health.score >= 70 ? "up" : health.score >= 40 ? "neutral" : "down"}
+          />
+        </Link>
         <StatCard label="Net Worth" value={fmt(summary.netWorth)} trend="up" />
         <StatCard label="Monthly Take-Home" value={fmt(summary.monthlyTakeHome)} />
         <StatCard label="Monthly Expenses" value={fmt(summary.monthlyExpenses)} />

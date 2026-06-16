@@ -4,12 +4,14 @@ import {
   dbModeToDashboardView,
   dashboardViewToDbMode,
 } from "@/lib/profile/preferences";
+import { parseSetupCompleted } from "@/lib/profile/setup";
 import type {
   FinanceData,
   FixedExpense,
   SinkingFund,
   AllocationBucket,
   FinancialGoal,
+  FinancialHealthSnapshot,
   Asset,
   Liability,
   NetWorthSnapshot,
@@ -25,6 +27,12 @@ import type {
   SetupChoice,
 } from "@/lib/types";
 import { DEFAULT_SHAREABLE } from "@/lib/household/defaults";
+import {
+  bucketMatchKey,
+  buildAllocationBucketDbRow,
+  mapAllocationBucketFromRow,
+  resolveAllocationBucketDbId,
+} from "@/lib/allocation/buckets";
 
 function now() {
   return new Date().toISOString();
@@ -66,6 +74,60 @@ function mapIncomeFromRow(
   };
 }
 
+export type ProfileSetupState = {
+  profile: Record<string, unknown> | null;
+  setupCompleted: boolean;
+  setupChoice: SetupChoice | null;
+  onboardingCompleted: boolean;
+  dashboardView: DashboardViewMode;
+  householdId: string | null;
+};
+
+/** Load profile onboarding flags independently of full finance data. */
+export async function loadProfileSetupState(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<ProfileSetupState> {
+  const [profileRes, memberRes] = await Promise.all([
+    supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  assertNoError(profileRes.error, "profiles setup load");
+
+  const profileRecord = profileRes.data as Record<string, unknown> | null;
+  const householdId = (memberRes.data?.household_id as string | undefined) ?? null;
+  const setupCompleted = parseSetupCompleted(profileRecord);
+
+  console.log("[FinanceTracker Debug] raw profile row from Supabase", {
+    userId,
+    profileRow: profileRecord,
+    setup_completed: profileRecord?.setup_completed ?? null,
+    setup_choice: profileRecord?.setup_choice ?? null,
+    onboarding_completed: profileRecord?.onboarding_completed ?? null,
+    household_id: householdId,
+    memberLoadError: memberRes.error?.message ?? null,
+    parseSetupCompletedResult: setupCompleted,
+  });
+
+  return {
+    profile: profileRecord,
+    setupCompleted,
+    setupChoice: (profileRecord?.setup_choice as SetupChoice | null) ?? null,
+    onboardingCompleted: setupCompleted,
+    dashboardView: dbModeToDashboardView(
+      (profileRecord?.default_dashboard_mode ?? profileRecord?.dashboard_view) as string | undefined
+    ),
+    householdId,
+  };
+}
+
 export async function loadFinanceDataFromSupabase(
   supabase: SupabaseClient,
   userId: string
@@ -80,6 +142,7 @@ export async function loadFinanceDataFromSupabase(
     assetsRes,
     liabilitiesRes,
     snapshotsRes,
+    healthRes,
     scenariosRes,
     holdingsRes,
     mortgagesRes,
@@ -94,6 +157,7 @@ export async function loadFinanceDataFromSupabase(
     supabase.from("assets").select("*").eq("user_id", userId),
     supabase.from("liabilities").select("*").eq("user_id", userId),
     supabase.from("net_worth_snapshots").select("*").eq("user_id", userId),
+    supabase.from("financial_health_snapshots").select("*").eq("user_id", userId),
     supabase.from("scenarios").select("*").eq("user_id", userId),
     supabase.from("investment_holdings").select("*").eq("user_id", userId),
     supabase.from("mortgage_accounts").select("*").eq("user_id", userId),
@@ -112,6 +176,7 @@ export async function loadFinanceDataFromSupabase(
   assertNoError(assetsRes.error, "assets load");
   assertNoError(liabilitiesRes.error, "liabilities load");
   assertNoError(snapshotsRes.error, "net_worth_snapshots load");
+  assertNoError(healthRes.error, "financial_health_snapshots load");
   assertNoError(scenariosRes.error, "scenarios load");
   assertNoError(holdingsRes.error, "investment_holdings load");
   assertNoError(mortgagesRes.error, "mortgage_accounts load");
@@ -139,10 +204,9 @@ export async function loadFinanceDataFromSupabase(
     : { ...EMPTY_FINANCE_DATA.investmentProjection };
 
   const profileRecord = profile as Record<string, unknown> | null;
-  const legacyOnboarding = Boolean(profileRecord?.onboarding_completed);
-  const setupCompleted = Boolean(profileRecord?.setup_completed ?? legacyOnboarding);
+  const setupCompleted = parseSetupCompleted(profileRecord);
   const setupChoice = (profileRecord?.setup_choice as SetupChoice | null) ?? null;
-  const onboardingCompleted = setupCompleted || legacyOnboarding;
+  const onboardingCompleted = setupCompleted;
   const dashboardView = dbModeToDashboardView(
     (profileRecord?.default_dashboard_mode ?? profileRecord?.dashboard_view) as string | undefined
   );
@@ -171,12 +235,7 @@ export async function loadFinanceDataFromSupabase(
 
   const allocationBuckets: AllocationBucket[] =
     (bucketsRes.data ?? []).length > 0
-      ? bucketsRes.data!.map((r) => ({
-          id: r.id,
-          name: r.name,
-          percentage: Number(r.percentage),
-          isDefault: r.is_default,
-        }))
+      ? bucketsRes.data!.map((r) => mapAllocationBucketFromRow(r))
       : [...DEFAULT_ALLOCATION_BUCKETS];
 
   const goals: FinancialGoal[] = (goalsRes.data ?? []).map((r) => ({
@@ -187,6 +246,7 @@ export async function loadFinanceDataFromSupabase(
     currentAmount: Number(r.current_amount),
     monthlyContribution: Number(r.monthly_contribution),
     targetDate: r.target_date ?? "",
+    priority: Number(r.priority ?? 3),
     userContributionAmount: Number(r.user_contribution_amount ?? 0),
     partnerContributionAmount: Number(r.partner_contribution_amount ?? 0),
     ...mapShareable(r),
@@ -215,6 +275,18 @@ export async function loadFinanceDataFromSupabase(
     totalAssets: Number(r.total_assets),
     totalLiabilities: Number(r.total_liabilities),
   }));
+
+  const financialHealthSnapshots: FinancialHealthSnapshot[] = (healthRes.data ?? []).map(
+    (r) => ({
+      id: r.id,
+      date: r.snapshot_date,
+      score: Number(r.score),
+      rating: r.rating as FinancialHealthSnapshot["rating"],
+      categoryScores: (r.category_scores ?? {}) as Record<string, number>,
+      suggestions: (r.suggestions ?? []) as string[],
+      householdId: (r.household_id as string | null) ?? null,
+    })
+  );
 
   const scenarios: Scenario[] = (scenariosRes.data ?? []).map((r) => ({
     id: r.id,
@@ -287,6 +359,7 @@ export async function loadFinanceDataFromSupabase(
     assets,
     liabilities,
     netWorthSnapshots,
+    financialHealthSnapshots,
     scenarios,
     investmentHoldings,
     mortgageAccounts,
@@ -331,6 +404,30 @@ export async function saveProfilePreferences(
   }
   const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
   assertNoError(error, "profiles preferences save");
+
+  const { data: verify, error: verifyError } = await supabase
+    .from("profiles")
+    .select("user_id, setup_completed, setup_choice, onboarding_completed")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  console.log("[FinanceTracker] saveProfilePreferences verify", {
+    userId,
+    requested: {
+      setupCompleted: prefs.setupCompleted,
+      setupChoice: prefs.setupChoice,
+    },
+    profileRow: verify,
+    verifyError: verifyError?.message ?? null,
+  });
+
+  if (prefs.setupCompleted === true && verify?.setup_completed !== true) {
+    console.error("[FinanceTracker] setup_completed was NOT saved as true", {
+      userId,
+      verify,
+      verifyError,
+    });
+  }
 }
 
 export async function saveFinanceDataToSupabase(
@@ -357,9 +454,6 @@ export async function saveFinanceDataToSupabase(
       inv_monthly_contribution: data.investmentProjection.monthlyContribution,
       inv_annual_return: data.investmentProjection.annualReturn,
       inv_time_horizon_years: data.investmentProjection.timeHorizonYears,
-      setup_completed: data.setupCompleted,
-      setup_choice: data.setupChoice,
-      onboarding_completed: data.setupCompleted || data.onboardingCompleted,
       dashboard_view: data.dashboardView,
       default_dashboard_mode: dbDashboardMode,
       updated_at: ts,
@@ -424,14 +518,7 @@ export async function saveFinanceDataToSupabase(
     updated_at: ts,
   }));
 
-  await syncCollection(supabase, "allocation_buckets", userId, data.allocationBuckets, (b) => ({
-    id: b.id,
-    user_id: userId,
-    name: b.name,
-    percentage: b.percentage,
-    is_default: b.isDefault,
-    updated_at: ts,
-  }));
+  await syncAllocationBuckets(supabase, userId, data.allocationBuckets, ts);
 
   await syncCollection(supabase, "financial_goals", userId, data.goals, (g) => ({
     id: g.id,
@@ -442,6 +529,7 @@ export async function saveFinanceDataToSupabase(
     current_amount: g.currentAmount,
     monthly_contribution: g.monthlyContribution,
     target_date: g.targetDate || null,
+    priority: g.priority ?? 3,
     visibility: g.visibility,
     household_id: g.householdId,
     shared_account_id: g.sharedAccountId,
@@ -483,6 +571,24 @@ export async function saveFinanceDataToSupabase(
     total_liabilities: s.totalLiabilities,
     updated_at: ts,
   }));
+
+  await syncCollection(
+    supabase,
+    "financial_health_snapshots",
+    userId,
+    data.financialHealthSnapshots,
+    (s) => ({
+      id: s.id,
+      user_id: userId,
+      household_id: s.householdId,
+      score: s.score,
+      rating: s.rating,
+      category_scores: s.categoryScores,
+      suggestions: s.suggestions,
+      snapshot_date: s.date,
+      updated_at: ts,
+    })
+  );
 
   await syncCollection(supabase, "scenarios", userId, data.scenarios, (s) => ({
     id: s.id,
@@ -558,6 +664,57 @@ export async function saveFinanceDataToSupabase(
       updated_at: ts,
     })
   );
+}
+
+async function syncAllocationBuckets(
+  supabase: SupabaseClient,
+  userId: string,
+  buckets: AllocationBucket[],
+  updatedAt: string
+) {
+  const { data: existing, error: fetchError } = await supabase
+    .from("allocation_buckets")
+    .select("id, name, is_default")
+    .eq("user_id", userId);
+  assertNoError(fetchError, "allocation_buckets fetch");
+
+  const existingRows = existing ?? [];
+  const existingById = new Map(existingRows.map((row) => [row.id, row]));
+  const existingByKey = new Map(
+    existingRows.map((row) => [bucketMatchKey(row.name, row.is_default), row.id])
+  );
+
+  const rows = buckets.map((bucket) => {
+    const resolvedId = resolveAllocationBucketDbId(bucket, existingById, existingByKey);
+    return buildAllocationBucketDbRow(bucket, userId, updatedAt, resolvedId);
+  });
+
+  if (rows.length === 0) {
+    if (existingRows.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("allocation_buckets")
+        .delete()
+        .eq("user_id", userId);
+      assertNoError(deleteError, "allocation_buckets delete");
+    }
+    return;
+  }
+
+  const { data: upserted, error: upsertError } = await supabase
+    .from("allocation_buckets")
+    .upsert(rows)
+    .select("id");
+  assertNoError(upsertError, "allocation_buckets upsert");
+
+  const keptIds = new Set((upserted ?? []).map((row) => row.id));
+  const toDelete = existingRows.map((row) => row.id).filter((id) => !keptIds.has(id));
+  if (toDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("allocation_buckets")
+      .delete()
+      .in("id", toDelete);
+    assertNoError(deleteError, "allocation_buckets delete");
+  }
 }
 
 async function syncCollection<T extends { id: string }>(

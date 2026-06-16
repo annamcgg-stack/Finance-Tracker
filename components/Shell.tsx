@@ -36,6 +36,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { LocalDataImportPrompt } from "@/components/LocalDataImportPrompt";
 import { AccountModeSelector } from "@/components/AccountModeSelector";
 import { SaveStatusIndicator } from "@/components/SaveStatusIndicator";
+import { needsOnboarding } from "@/lib/profile/setup";
 
 const PUBLIC_ROUTES = ["/welcome", "/login", "/signup"];
 const ONBOARDING_ROUTES = ["/onboarding", "/invite"];
@@ -61,8 +62,8 @@ const ICONS = {
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data, updateData, loaded, saveStatus, error } = useFinance();
-  const { user } = useSupabaseUser();
+  const { data, updateData, loaded, profileReady, saveStatus, error } = useFinance();
+  const { user, loading: authLoading } = useSupabaseUser();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
@@ -70,21 +71,88 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const toggleDark = () => updateData({ darkMode: !data.darkMode });
 
   useEffect(() => {
-    if (!loaded || !user || isPublic) return;
-
     const onSetupRoute = isOnboarding || pathname.startsWith("/invite/");
+    const waitingForProfile = authLoading || !user || !profileReady;
 
-    if (data.setupCompleted) {
+    if (isPublic || waitingForProfile) {
+      console.log("[FinanceTracker Debug] onboarding gate deferred", {
+        reason: isPublic
+          ? "public-route"
+          : authLoading
+            ? "auth-loading"
+            : !user
+              ? "no-user"
+              : "profile-loading",
+        authLoading,
+        profileReady,
+        loaded,
+        pathname,
+        userId: user?.id ?? null,
+      });
+      return;
+    }
+
+    const showOnboarding = needsOnboarding(data.setupCompleted, { profileReady: true });
+
+    let routeDecision: string;
+    if (!showOnboarding) {
+      routeDecision =
+        pathname === "/onboarding" ? "redirect-to-dashboard" : "stay-on-dashboard";
+    } else {
+      routeDecision = onSetupRoute ? "stay-on-onboarding" : "redirect-to-onboarding";
+    }
+
+    console.log("[FinanceTracker Debug] onboarding decision", {
+      rawProfileRow: {
+        setup_completed: data.setupCompleted,
+        setup_choice: data.setupChoice,
+        onboarding_completed: data.onboardingCompleted,
+        dashboard_view: data.dashboardView,
+      },
+      setup_completed: data.setupCompleted,
+      parseSetupCompletedResult: data.setupCompleted,
+      dataSetupCompleted: data.setupCompleted,
+      needsOnboardingResult: showOnboarding,
+      showOnboarding,
+      profileReady,
+      loaded,
+      authLoading,
+      pathname,
+      onSetupRoute,
+      routeDecision,
+      userId: user.id,
+    });
+
+    if (!showOnboarding) {
       if (pathname === "/onboarding") {
         router.replace("/");
       }
+      console.log("[FinanceTracker Debug] final redirect decision", { routeDecision, applied: true });
       return;
     }
 
     if (!onSetupRoute) {
       router.replace("/onboarding");
     }
-  }, [loaded, user, data.setupCompleted, isPublic, isOnboarding, pathname, router]);
+    console.log("[FinanceTracker Debug] final redirect decision", {
+      routeDecision,
+      applied: !onSetupRoute,
+      reason: "setup_completed is false",
+    });
+  }, [
+    authLoading,
+    loaded,
+    profileReady,
+    user,
+    data.setupCompleted,
+    data.setupChoice,
+    data.onboardingCompleted,
+    data.dashboardView,
+    isPublic,
+    isOnboarding,
+    pathname,
+    router,
+  ]);
 
   if (isPublic || isOnboarding) {
     return <div className="min-h-screen min-h-[100dvh] bg-background safe-top">{children}</div>;
@@ -184,7 +252,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <main className="min-w-0 flex-1 px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8">
-          {!loaded ? (
+          {authLoading || !profileReady || !loaded ? (
             <div className="flex flex-col items-center justify-center py-24 text-muted">
               <Loader2 className="mb-3 h-8 w-8 animate-spin" />
               <p>Loading your financial data…</p>

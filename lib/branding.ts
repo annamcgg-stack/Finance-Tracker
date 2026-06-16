@@ -14,6 +14,8 @@ export const APP_SIDEBAR_SUBTITLE = "Personal finance";
 
 export const APP_DASHBOARD_DESCRIPTION = "Your financial overview at a glance.";
 
+export const APP_WELCOME_ONBOARDING = "Welcome to Finance Tracker";
+
 /** Legacy strings that must not appear in user-facing UI. */
 export const FORBIDDEN_BRAND_STRINGS = [
   "WealthPlan",

@@ -72,12 +72,77 @@ export function getNetWorthTrend(snapshots: NetWorthSnapshot[]) {
     }));
 }
 
+export function getNetWorthPeriodChange(snapshots: NetWorthSnapshot[]) {
+  const trend = getNetWorthTrend(snapshots);
+  if (trend.length === 0) {
+    return { monthlyChange: 0, annualChange: 0, hasHistory: false };
+  }
+  const latest = trend[trend.length - 1].netWorth;
+  const oneMonthAgo = trend.filter((t) => {
+    const d = new Date(t.date);
+    const now = new Date();
+    return d >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+  });
+  const oneYearAgo = trend.filter((t) => {
+    const d = new Date(t.date);
+    const now = new Date();
+    return d >= new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  });
+  const monthlyBase = oneMonthAgo.length > 1 ? oneMonthAgo[0].netWorth : trend[0].netWorth;
+  const annualBase = oneYearAgo.length > 0 ? oneYearAgo[0].netWorth : trend[0].netWorth;
+  return {
+    monthlyChange: latest - monthlyBase,
+    annualChange: latest - annualBase,
+    hasHistory: trend.length > 1,
+  };
+}
+
+/** Combined asset allocation including portfolio holdings and property. */
+export function getIntegratedAssetAllocation(data: FinanceData) {
+  const byType = new Map<string, number>();
+  for (const asset of data.assets) {
+    byType.set(asset.type, (byType.get(asset.type) ?? 0) + asset.value);
+  }
+  const portfolioValue = getTotalPortfolioValue(data.investmentHoldings);
+  if (portfolioValue > 0) {
+    byType.set("shares_etfs", (byType.get("shares_etfs") ?? 0) + portfolioValue);
+  }
+  const propertyValue = getTotalPropertyValue(data.mortgageAccounts);
+  if (propertyValue > 0) {
+    byType.set("property", (byType.get("property") ?? 0) + propertyValue);
+  }
+  const total = Array.from(byType.values()).reduce((s, v) => s + v, 0);
+  return Array.from(byType.entries()).map(([type, value]) => ({
+    type,
+    value,
+    percentage: total > 0 ? (value / total) * 100 : 0,
+  }));
+}
+
+export function getLiabilityBreakdown(data: FinanceData) {
+  const byType = new Map<string, number>();
+  for (const liability of data.liabilities) {
+    byType.set(liability.type, (byType.get(liability.type) ?? 0) + liability.value);
+  }
+  const mortgageBalance = getTotalMortgageBalance(data.mortgageAccounts);
+  if (mortgageBalance > 0) {
+    byType.set("mortgage", (byType.get("mortgage") ?? 0) + mortgageBalance);
+  }
+  const total = Array.from(byType.values()).reduce((s, v) => s + v, 0);
+  return Array.from(byType.entries()).map(([type, value]) => ({
+    type,
+    value,
+    percentage: total > 0 ? (value / total) * 100 : 0,
+  }));
+}
+
 export const ASSET_TYPE_LABELS: Record<string, string> = {
   cash: "Cash",
   savings: "Savings",
   shares_etfs: "Shares / ETFs",
   superannuation: "Superannuation",
   property: "Property",
+  crypto: "Crypto",
   vehicles: "Vehicles",
   other: "Other Assets",
 };

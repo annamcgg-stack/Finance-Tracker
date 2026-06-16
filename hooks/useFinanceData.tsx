@@ -12,11 +12,13 @@ import {
 } from "react";
 import type { DashboardViewMode, FinanceData, HoldingWithQuote, SetupChoice } from "@/lib/types";
 import { EMPTY_FINANCE_DATA } from "@/lib/constants";
-import { createNetWorthSnapshot } from "@/lib/storage";
+import { createNetWorthSnapshot, saveFinanceData } from "@/lib/storage";
 import { getIntegratedNetWorth } from "@/lib/calculations/net-worth";
+import { createHealthSnapshot } from "@/lib/calculations/financialHealthScore";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   loadFinanceDataFromSupabase,
+  loadProfileSetupState,
   saveFinanceDataToSupabase,
   saveProfilePreferences,
   updateHoldingPrices,
@@ -44,6 +46,8 @@ type FinanceContextValue = {
   replaceData: (data: FinanceData) => void;
   resetData: () => void;
   loaded: boolean;
+  /** True once profile setup flags are loaded for the current user. */
+  profileReady: boolean;
   saving: boolean;
   saveStatus: SaveStatus;
   error: string | null;
@@ -73,6 +77,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useSupabaseUser();
   const [data, setData] = useState<FinanceData>(EMPTY_FINANCE_DATA);
   const [loaded, setLoaded] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [portfolioHoldings, setPortfolioHoldings] = useState<HoldingWithQuote[]>([]);
@@ -85,6 +90,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const dataRef = useRef(data);
   const hydrateComplete = useRef(false);
   const persistInFlight = useRef<Promise<void> | null>(null);
+  const activeUserIdRef = useRef<string | null>(null);
+  const lastProfileRowRef = useRef<Record<string, unknown> | null>(null);
 
   dataRef.current = data;
 
@@ -149,22 +156,86 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const loadData = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase || !user) {
+      setProfileReady(false);
       setLoaded(true);
       return;
     }
 
     setLoaded(false);
+    setProfileReady(false);
     hydrateComplete.current = false;
     setError(null);
     try {
-      const remote = await loadFinanceDataFromSupabase(supabase, user.id);
+      const setupState = await loadProfileSetupState(supabase, user.id);
+      lastProfileRowRef.current = setupState.profile;
+
       skipSave.current = true;
+      setData((prev) => ({
+        ...prev,
+        setupCompleted: setupState.setupCompleted,
+        setupChoice: setupState.setupChoice,
+        onboardingCompleted: setupState.onboardingCompleted,
+        dashboardView: setupState.dashboardView,
+      }));
+      setProfileReady(true);
+
+      console.log("[FinanceTracker Debug] useFinanceData profile applied", {
+        userId: user.id,
+        rawProfileRow: setupState.profile,
+        setup_completed: setupState.profile?.setup_completed ?? null,
+        parseSetupCompletedResult: setupState.setupCompleted,
+        dataSetupCompleted: setupState.setupCompleted,
+        profileReady: true,
+      });
+
+      const remote = await loadFinanceDataFromSupabase(supabase, user.id);
       markClean();
-      setData(remote);
+      setData({
+        ...remote,
+        setupCompleted: setupState.setupCompleted,
+        setupChoice: setupState.setupChoice,
+        onboardingCompleted: setupState.onboardingCompleted,
+        dashboardView: setupState.dashboardView,
+      });
       setLoaded(true);
       hydrateComplete.current = true;
+      console.log("[FinanceTracker Debug] useFinanceData load complete", {
+        userId: user.id,
+        dataSetupCompleted: setupState.setupCompleted,
+        loaded: true,
+        profileReady: true,
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load data");
+      const message = e instanceof Error ? e.message : "Failed to load data";
+      console.error("[FinanceTracker Debug] useFinanceData load failed", {
+        userId: user.id,
+        error: message,
+      });
+      try {
+        const setupState = await loadProfileSetupState(supabase, user.id);
+        lastProfileRowRef.current = setupState.profile;
+        console.log("[FinanceTracker Debug] useFinanceData profile fallback", {
+          userId: user.id,
+          rawProfileRow: setupState.profile,
+          setup_completed: setupState.profile?.setup_completed ?? null,
+          parseSetupCompletedResult: setupState.setupCompleted,
+          dataSetupCompleted: setupState.setupCompleted,
+        });
+        skipSave.current = true;
+        markClean();
+        setData((prev) => ({
+          ...prev,
+          setupCompleted: setupState.setupCompleted,
+          setupChoice: setupState.setupChoice,
+          onboardingCompleted: setupState.onboardingCompleted,
+          dashboardView: setupState.dashboardView,
+        }));
+        setProfileReady(true);
+      } catch (profileErr) {
+        console.error("[FinanceTracker Debug] profile fallback failed", profileErr);
+        setProfileReady(false);
+      }
+      setError(message);
       setLoaded(true);
       hydrateComplete.current = true;
       markClean();
@@ -173,17 +244,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
+
     if (!user) {
+      activeUserIdRef.current = null;
+      lastProfileRowRef.current = null;
       skipSave.current = true;
       hydrateComplete.current = false;
       markClean();
       setData(EMPTY_FINANCE_DATA);
+      setProfileReady(false);
       setLoaded(true);
       setSaveStatus("idle");
+      console.log("[FinanceTracker Debug] useFinanceData signed out — profile not ready");
       return;
     }
-    loadData();
-  }, [user, authLoading, loadData]);
+
+    if (activeUserIdRef.current !== user.id) {
+      activeUserIdRef.current = user.id;
+      setLoaded(false);
+      setProfileReady(false);
+      hydrateComplete.current = false;
+      skipSave.current = true;
+      console.log("[FinanceTracker Debug] useFinanceData user changed — waiting for profile", {
+        userId: user.id,
+      });
+    }
+
+    void loadData();
+  }, [user, authLoading, loadData, markClean]);
 
   useEffect(() => {
     if (!loaded || !user) return;
@@ -201,6 +289,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
+      if (user) saveFinanceData(dataRef.current);
       void persistData(dataRef.current, user.email);
     }, SAVE_DEBOUNCE_MS);
 
@@ -257,6 +346,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     data.liabilities,
     data.investmentHoldings,
     data.mortgageAccounts,
+    loaded,
+    user,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!hydrateComplete.current || !loaded || !user) return;
+    const result = createHealthSnapshot(data, null);
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const existing = data.financialHealthSnapshots.find((s) => s.date.startsWith(monthKey));
+    if (existing && existing.score === result.score) return;
+
+    setData((prev) => {
+      const filtered = prev.financialHealthSnapshots.filter((s) => !s.date.startsWith(monthKey));
+      return { ...prev, financialHealthSnapshots: [...filtered, result] };
+    });
+  }, [
+    data.income,
+    data.expenses,
+    data.goals,
+    data.assets,
+    data.liabilities,
+    data.investmentHoldings,
+    data.mortgageAccounts,
+    data.emergencyFundBalance,
+    data.netWorthSnapshots.length,
     loaded,
     user,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -356,6 +470,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       skipSave.current = true;
       markClean();
       setData((prev) => ({ ...prev, ...patch }));
+      setProfileReady(true);
 
       await saveProfilePreferences(supabase, user.id, {
         setupCompleted: true,
@@ -364,9 +479,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         dashboardView,
         email: user.email,
       });
+      console.log("[FinanceTracker Debug] finishSetup saved to Supabase", {
+        userId: user.id,
+        setupChoice: choice,
+        dashboardView,
+      });
 
       if (saveTimer.current) clearTimeout(saveTimer.current);
       await persistData({ ...dataRef.current, ...patch }, user.email);
+      console.log("[FinanceTracker Debug] finishSetup complete", {
+        userId: user.id,
+        dataSetupCompleted: dataRef.current.setupCompleted,
+      });
     },
     [user, persistData]
   );
@@ -416,6 +540,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       replaceData,
       resetData,
       loaded: loaded && !authLoading,
+      profileReady: profileReady && !authLoading && Boolean(user),
       saving,
       saveStatus,
       error,
@@ -439,7 +564,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       replaceData,
       resetData,
       loaded,
+      profileReady,
       authLoading,
+      user,
       saving,
       saveStatus,
       error,

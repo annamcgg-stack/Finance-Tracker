@@ -25,6 +25,20 @@ export function sortGoalsByProgress(goals: FinancialGoal[]): FinancialGoal[] {
   return [...goals].sort((a, b) => getGoalProgress(b) - getGoalProgress(a));
 }
 
+export function sortGoalsByPriority(goals: FinancialGoal[]): FinancialGoal[] {
+  return [...goals].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return getGoalProgress(b) - getGoalProgress(a);
+  });
+}
+
+export function getMonthlyNeededForGoal(goal: FinancialGoal): number | null {
+  const remaining = getGoalRemaining(goal);
+  const months = getMonthsToTarget(goal);
+  if (months <= 0 || remaining <= 0) return null;
+  return remaining / months;
+}
+
 export function getMonthsToTarget(goal: FinancialGoal): number {
   return monthsUntil(goal.targetDate);
 }

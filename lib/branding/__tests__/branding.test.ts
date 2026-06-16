@@ -7,6 +7,7 @@ import {
   APP_INTRO,
   APP_PWA_INSTALL_LINE,
   APP_DASHBOARD_DESCRIPTION,
+  APP_WELCOME_ONBOARDING,
   FORBIDDEN_BRAND_STRINGS,
 } from "@/lib/branding";
 
@@ -30,6 +31,7 @@ describe("branding", () => {
     expect(APP_INTRO).toContain("Finance Tracker helps");
     expect(APP_PWA_INSTALL_LINE).toContain("Finance Tracker");
     expect(APP_DASHBOARD_DESCRIPTION).toBe("Your financial overview at a glance.");
+    expect(APP_WELCOME_ONBOARDING).toBe("Welcome to Finance Tracker");
   });
 
   it("has no forbidden WealthPlan strings in user-facing source", () => {

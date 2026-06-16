@@ -178,6 +178,7 @@ export async function loadPartnerSharedData(
         currentAmount: Number(r.current_amount),
         monthlyContribution: Number(r.monthly_contribution),
         targetDate: r.target_date ?? "",
+        priority: Number(r.priority ?? 3),
         userContributionAmount: Number(r.user_contribution_amount),
         partnerContributionAmount: Number(r.partner_contribution_amount),
         ...mapShareable(r, pid),
